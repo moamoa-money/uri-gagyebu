@@ -13,6 +13,13 @@ export function parseAmount(text: string): number | null {
   return Number.isSafeInteger(n) ? n : null;
 }
 
+/** 마이너스도 되는 금액 (카드 시작 잔액 등): 앞에 - 가 있으면 음수 */
+export function parseSignedAmount(text: string): number | null {
+  const n = parseAmount(text);
+  if (n === null) return null;
+  return /^\s*[-−]/.test(String(text)) ? -n : n;
+}
+
 // ---------- 통장 잔액 ----------
 
 /** 통장 잔액 = 시작 잔액 + 들어온 돈 − 나간 돈 (카드는 쓰면 마이너스로 쌓임) */

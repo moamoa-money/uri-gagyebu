@@ -1,6 +1,6 @@
 // 통장·카드 잔액 + 투자 목록
 import { useCallback, useEffect, useState } from 'react';
-import { parseAmount, won } from '../shared/rules';
+import { parseAmount, parseSignedAmount, won } from '../shared/rules';
 import type { Investment } from '../shared/types';
 import { api } from './api';
 import { LoanSchedules } from './Loans';
@@ -12,6 +12,15 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
   const [inv, setInv] = useState<Investment[]>([]);
   const [edit, setEdit] = useState<(Partial<AccountWithBalance> & { pin?: boolean }) | null>(null);
   const [editInv, setEditInv] = useState<Partial<Investment> | null>(null);
+  // 시작 잔액 칸 글자 (마이너스 입력 중 '-'만 있는 상태도 지키려고 따로 둠)
+  const [startText, setStartText] = useState('');
+  const editKey = edit === null ? null : (edit.id ?? 'new');
+  useEffect(() => {
+    if (editKey === null) return;
+    const n = edit?.startBalance ?? 0;
+    setStartText(n === 0 ? '' : (n < 0 ? '-' : '') + won(Math.abs(n)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editKey]);
   const load = useCallback(() => {
     api<AccountWithBalance[]>('/accounts').then(setList).catch(onError);
     api<Investment[]>('/investments').then(setInv).catch(onError);
@@ -21,7 +30,7 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
   async function saveAcc() {
     if (!edit) return;
     try {
-      const saved = await api<AccountWithBalance[]>('/accounts', { ...edit, startBalance: parseAmount(String(edit.startBalance ?? 0)) ?? 0 });
+      const saved = await api<AccountWithBalance[]>('/accounts', { ...edit, startBalance: parseSignedAmount(startText) ?? 0 });
       setList(saved);
       // 거래 화면 잔액 칸에 보일지: 지금 보이는 목록에서 이 통장만 켜고/끄기
       const id = edit.id ?? saved.find((a) => a.name === edit.name?.trim())?.id;
@@ -151,7 +160,7 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
             <h3>{edit.id ? '통장 고치기' : '통장 추가'}</h3>
             <div className="vform">
               <label>이름</label>
-              <input className="text" value={edit.name ?? ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="예: 생활비 통장" />
+              <input className="text" value={edit.name ?? ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="예: 신한생활비" />
               <label>분류</label>
               <div className="chips">
                 {boot.accountKinds.map((k) => (
@@ -161,7 +170,12 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
                 ))}
               </div>
               <label>시작 잔액</label>
-              <input className="text money" inputMode="numeric" value={won(edit.startBalance ?? 0)} onChange={(e) => setEdit({ ...edit, startBalance: parseAmount(e.target.value) ?? 0 })} />
+              <input className="text money" inputMode="text" value={startText} onChange={(e) => {
+                  const v = e.target.value.replace(/[^\d,\-−]/g, '');
+                  const n = parseSignedAmount(v);
+                  setStartText(n === null ? (/^\s*[-−]/.test(v) ? '-' : '') : (n < 0 ? '-' : '') + won(Math.abs(n)));
+                }} placeholder="0" />
+              <span className="muted small">카드처럼 갚을 돈이 남아 있으면 앞에 - 를 붙여요. 예: -120,000</span>
               <label />
               <label className="check">
                 <input type="checkbox" checked={edit.pin ?? DAILY_KINDS.includes(edit.kind ?? '')} onChange={(e) => setEdit({ ...edit, pin: e.target.checked })} /> 거래 화면 잔액에 보이기
