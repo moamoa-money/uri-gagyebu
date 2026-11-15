@@ -8,7 +8,7 @@
     "build": "npm run typecheck && vite build",
     "dev": "vite build && wrangler dev --port 8810",
     "db:migrate": "wrangler d1 migrations apply DB --remote",
-    "deploy": "npm run build && wrangler d1 migrations apply DB --remote && wrangler deploy"
+    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy"
   },
   "dependencies": {
     "html-to-image": "^1.11.13",

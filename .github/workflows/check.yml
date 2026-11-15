@@ -1,0 +1,31 @@
+# 원본에 올릴 때마다 자동 검사 — 검사를 통과한 것만 가족들 가계부로 넘어가요
+name: 자동 검사
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: 타입 검사 · 화면 만들기
+        run: npm run build
+      - name: 계산 규칙 시험
+        run: npm test
+      - name: 데이터베이스 변경은 '덧붙이기'만
+        run: |
+          # 1) 이미 올린 변경 파일은 고치거나 지우지 않기 (가족들 데이터베이스에 이미 적용됐으니까)
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            changed=$(git diff --name-status HEAD~1 HEAD -- migrations | grep -E '^(M|D|R)' || true)
+            if [ -n "$changed" ]; then echo "이미 올린 데이터베이스 변경 파일을 고치면 안 돼요:"; echo "$changed"; exit 1; fi
+          fi
+          # 2) 새 변경 파일에 데이터를 지우는 명령 금지 (0005는 같은 데이터로 표를 다시 만든 예외, 이미 적용됨)
+          bad=$(grep -liE "drop[[:space:]]+table|drop[[:space:]]+column|delete[[:space:]]+from" migrations/*.sql | grep -v '0005_special_moneynote.sql' || true)
+          if [ -n "$bad" ]; then echo "데이터를 지울 수 있는 변경은 허락하지 않아요:"; echo "$bad"; exit 1; fi
+          echo "데이터베이스 변경 검사 통과"

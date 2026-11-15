@@ -1,0 +1,40 @@
+# 원본 가계부(moamoa-money/uri-gagyebu)의 새 기능을 매일 받아오기
+# - 설치 버튼으로 만든 내 저장소에서만 동작해요(원본 저장소에서는 건너뜀).
+# - 내 설정(wrangler.jsonc: 내 데이터베이스 번호)과 이 작업 파일(.github)은 그대로 두고, 나머지만 원본과 같게 맞춰요.
+# - 바뀐 게 있으면 저장 → Cloudflare가 자동으로 다시 설치하고, 데이터베이스는 '덧붙이기'만 하는 변경으로 안전하게 올라가요.
+# - 지금 바로 받으려면: GitHub 저장소 → Actions → "원본에서 업데이트 받기" → Run workflow
+name: 원본에서 업데이트 받기
+on:
+  schedule:
+    - cron: '0 18 * * *' # 매일 한국 시간 새벽 3시
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sync:
+    if: github.repository != 'moamoa-money/uri-gagyebu'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 원본 받아서 맞추기
+        run: |
+          set -e
+          git config user.name "gagyebu-update-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/moamoa-money/uri-gagyebu.git 2>/dev/null || git remote set-url upstream https://github.com/moamoa-money/uri-gagyebu.git
+          git fetch --depth=1 upstream main
+          cp wrangler.jsonc /tmp/my-wrangler.jsonc
+          git rm -rq --cached . > /dev/null
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec rm -rf {} +
+          git checkout upstream/main -- . ':!.github'
+          cp /tmp/my-wrangler.jsonc wrangler.jsonc
+          git add -A
+          if git diff --cached --quiet; then
+            echo "이미 최신이에요."
+          else
+            git commit -m "원본 가계부 업데이트 받기 ($(git rev-parse --short upstream/main))"
+            git push
+            echo "업데이트를 받았어요. Cloudflare가 곧 자동으로 다시 설치해요."
+          fi
