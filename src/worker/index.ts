@@ -20,7 +20,7 @@ import {
   saveRecurring,
   saveTx,
   setMonthBudget,
-  setup, setBalanceAccounts, setSaveBasis, setYearTarget, yearView, reviewView, saveReviewNote, saveReviewCause, pledgesFor, savePledge, deletePledge, setPledgeResult, assetsView, undoMonthBudget, listMoneyNotes, saveMoneyNote, deleteMoneyNote, planView, setPlanCell, copyMoneyNotes, saveBudgetNote, shortRoadmap, setRoadmapInclude, longRoadmap, setupLongRoadmap, setLongYears, setLongMilestones, saveLongRow, saveLongNote, saveLongVersion, getLongVersion, setAssetActual, setAccountInAssets, loansView, setFeatureLoan, saveLoanSchedule, saveLoanLink, valuationsView, setValuation, batchView, saveBatch, carryLongRoadmap, annualView, saveYearRecord, saveYearNote, setHousehold, resetMemberPassword, importNotionSetup, importNotionTx } from './ops';
+  setup, setBalanceAccounts, setSaveBasis, setYearTarget, yearView, reviewView, saveReviewNote, saveReviewCause, pledgesFor, savePledge, deletePledge, setPledgeResult, assetsView, undoMonthBudget, listMoneyNotes, saveMoneyNote, deleteMoneyNote, planView, setPlanCell, copyMoneyNotes, saveBudgetNote, shortRoadmap, setRoadmapInclude, longRoadmap, setupLongRoadmap, setLongYears, setLongMilestones, saveLongRow, saveLongNote, saveLongVersion, getLongVersion, setAssetActual, setAccountInAssets, loansView, setFeatureLoan, saveLoanSchedule, saveLoanLink, valuationsView, setValuation, batchView, saveBatch, carryLongRoadmap, annualView, saveYearRecord, saveYearNote, setHousehold, resetMemberPassword, notionImportStatus, clearNotionImport } from './ops';
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
@@ -123,8 +123,8 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (path === '/categories' && method === 'POST') return json(await saveCategory(env, user, body as never));
     if (path === '/categories/move' && method === 'POST') return json(await moveCategory(env, String(body.id), body.dir === -1 ? -1 : 1));
     if (path === '/budgets' && method === 'POST') return json(await setMonthBudget(env, user, body as never));
-    if (path === '/import/notion/setup' && method === 'POST') return json(await importNotionSetup(env, user, body));
-    if (path === '/import/notion/tx' && method === 'POST') return json(await importNotionTx(env, user, body));
+    if (path === '/import/notion' && method === 'GET') return json(await notionImportStatus(env));
+    if (path === '/import/notion/clear' && method === 'POST') return json(await clearNotionImport(env, user));
     if (path === '/accounts' && method === 'GET') return json(await accountsView(env));
     if (path === '/balance-accounts' && method === 'POST') return json(await setBalanceAccounts(env, user, body.ids));
     if (path === '/accounts' && method === 'POST') return json(await saveAccount(env, user, body as never));
