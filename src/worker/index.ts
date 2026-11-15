@@ -1,6 +1,6 @@
 // 우리집 가계부 서버 입구: /api/* 는 여기서, 나머지는 화면 파일
 
-import { clearCookie, currentUser, hasUsers, login, sessionCookie } from './auth';
+import { clearCookie, currentUser, hasUsers, login, recoverPassword, sessionCookie } from './auth';
 import { UserError, all, getUsers, type Env } from './db';
 import {
   accountsView,
@@ -46,6 +46,10 @@ async function api(request: Request, env: Env): Promise<Response> {
       const r = await login(env, String(body.name ?? ''), String(body.password ?? ''));
       if (r.ok) return json({ ok: true }, 200, { 'Set-Cookie': await sessionCookie(env, r.user.id) });
       return json({ error: r.reason === 'locked' ? '여러 번 틀려서 15분 동안 잠겼어요.' : '이름이나 비밀번호가 달라요.' }, r.reason === 'locked' ? 429 : 401);
+    }
+    if (path === '/recover' && method === 'POST') {
+      const u = await recoverPassword(env, String(body.code ?? ''), String(body.name ?? ''), String(body.password ?? ''));
+      return json({ ok: true }, 200, { 'Set-Cookie': await sessionCookie(env, u.id) });
     }
     if (path === '/logout' && method === 'POST') return json({ ok: true }, 200, { 'Set-Cookie': clearCookie });
 

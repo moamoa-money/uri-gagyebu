@@ -5,6 +5,7 @@ import type { Account, Category, Group, Investment, Recurring, Tx, User } from '
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  RESET_CODE?: string; // 비밀번호 잊었을 때: Cloudflare 대시보드에서 Secret으로 넣는 복구 열쇠(선택)
 }
 
 export class UserError extends Error {}

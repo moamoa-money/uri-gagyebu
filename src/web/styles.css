@@ -561,3 +561,8 @@ button { -webkit-appearance: none; appearance: none; }
   .tabs button.tab2 { display: flex; flex-direction: column; align-items: center; line-height: 1.3; padding: 7px 10px; flex: 1; }
   .tabs button.tab2 span:last-child { font-size: 13px; font-weight: 600; opacity: .85; }
 }
+/* 비밀번호 되찾기 */
+.linkbtn { background: none; border: 0; padding: 0; color: var(--muted, #7a7f7b); text-decoration: underline; cursor: pointer; font-size: 14px; justify-self: start; }
+.recover-steps { background: var(--soft); border-radius: 12px; padding: 12px 16px; margin: 6px 0 16px; font-size: 14px; line-height: 1.7; }
+.recover-steps ol { margin: 6px 0; padding-left: 20px; }
+.recover-steps code { background: #fff; padding: 0 4px; border-radius: 4px; }

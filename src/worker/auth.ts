@@ -2,7 +2,7 @@
 // 로그인 유지 쿠키는 서명 키로 서명 — 서명 키는 처음 실행할 때 만들어 DB에 둔다
 // (설치하는 사람이 따로 비밀 값을 넣지 않아도 되게).
 
-import { all, first, getSetting, run, setSetting, toUser, type Env } from './db';
+import { all, first, getSetting, run, setSetting, toUser, UserError, type Env } from './db';
 import type { User } from '../shared/types';
 
 const COOKIE = 'gb_session';
@@ -78,4 +78,35 @@ export async function login(env: Env, name: string, password: string): Promise<{
   }
   if (password) await run(env, 'INSERT INTO login_fails (at) VALUES (?)', [now]);
   return { ok: false, reason: 'bad' };
+}
+
+// 비밀번호 잊었을 때 되찾기: Cloudflare 계정 주인만 넣을 수 있는 Secret(RESET_CODE)을 '복구 열쇠'로 쓴다.
+// Cloudflare 비밀번호는 메일로 되찾을 수 있으니, 결국 가계부 비밀번호도 되찾을 수 있다.
+// 같은 열쇠는 한 번만 쓸 수 있고(쓴 열쇠의 지문을 저장), 틀리면 로그인 실패와 같이 세서 잠근다.
+async function digest(text: string): Promise<string> {
+  return b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+}
+export async function recoverPassword(env: Env, code: string, name: string, password: string): Promise<User> {
+  const now = Date.now();
+  const fails = await first(env, 'SELECT COUNT(*) AS n FROM login_fails WHERE at > ?', [now - LOCK_WINDOW_MS], (r) => Number(r.n));
+  if ((fails ?? 0) >= MAX_FAILS) throw new UserError('여러 번 틀려서 15분 동안 잠겼어요.');
+  const key = (env.RESET_CODE ?? '').trim();
+  if (key.length < 8) throw new UserError('아직 복구 열쇠가 없어요. 아래 안내대로 Cloudflare에서 먼저 만들어 주세요.');
+  const used = await getSetting(env, 'reset_code_used');
+  const fp = await digest(key);
+  if (!sameText(code.trim(), key)) {
+    await run(env, 'INSERT INTO login_fails (at) VALUES (?)', [now]);
+    throw new UserError('복구 열쇠가 달라요.');
+  }
+  if (used === fp) throw new UserError('이 복구 열쇠는 이미 한 번 썼어요. Cloudflare에서 새 열쇠로 바꿔 주세요.');
+  if (password.length < 6) throw new UserError('새 비밀번호는 6자 이상이에요.');
+  const row = await first(env, 'SELECT * FROM users WHERE name = ?', [name.trim()], toUser);
+  if (!row) throw new UserError('그 이름은 이 가계부에 없어요.');
+  const { hash, salt } = await hashPassword(password);
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET pw_hash = ?, pw_salt = ? WHERE id = ?').bind(hash, salt, row.id),
+    env.DB.prepare('DELETE FROM login_fails').bind(),
+  ]);
+  await setSetting(env, 'reset_code_used', fp);
+  return row;
 }

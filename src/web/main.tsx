@@ -29,11 +29,80 @@ interface Status {
   names: string[];
 }
 
+function Recover({ names, onOk, onBack }: { names: string[]; onOk: () => void; onBack: () => void }) {
+  const [code, setCode] = useState('');
+  const [name, setName] = useState(names[0] ?? '');
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [err, setErr] = useState('');
+  async function submit() {
+    setErr('');
+    if (pw !== pw2) return setErr('새 비밀번호 두 칸이 서로 달라요.');
+    try {
+      await api('/recover', { code, name, password: pw });
+      onOk();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+  return (
+    <div className="login">
+      <h1>비밀번호 다시 정하기</h1>
+      <div className="recover-steps">
+        <b>먼저 Cloudflare에서 '복구 열쇠'를 만들어요</b>
+        <ol>
+          <li><b>dash.cloudflare.com</b>에 로그인해요. (Cloudflare 비밀번호를 잊었으면 거기서 'Forgot password'로 메일을 받아 되찾아요.)</li>
+          <li>왼쪽 메뉴 <b>Workers &amp; Pages</b>(또는 Compute)에서 <b>내 가계부 이름</b>을 눌러요.</li>
+          <li><b>Settings</b> → <b>Variables and Secrets</b> → <b>+ Add</b></li>
+          <li>Type은 <b>Secret</b>, Variable name에는 <code>RESET_CODE</code>, Value에는 <b>아무 낱말 8자 이상</b>을 넣고 <b>Deploy</b>를 눌러요.</li>
+          <li>1분쯤 뒤, 그 낱말을 아래 '복구 열쇠' 칸에 넣어요.</li>
+        </ol>
+        <span className="muted">복구 열쇠는 한 번만 쓸 수 있어요. 다음에 또 필요하면 Value를 새 낱말로 바꿔요.</span>
+      </div>
+      <div className="vform">
+        <label>복구 열쇠</label>
+        <input className="text" value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="off" autoComplete="off" />
+        <label>이름</label>
+        {names.length > 0 ? (
+          <div className="chips">
+            {names.map((n) => (
+              <button key={n} className={`chip ${name === n ? 'on' : ''}`} onClick={() => setName(n)}>
+                {n}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <input className="text" value={name} onChange={(e) => setName(e.target.value)} />
+        )}
+        <label>새 비밀번호</label>
+        <input className="text" type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="6자 이상" />
+        <label>한 번 더</label>
+        <input className="text" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        <label />
+        <button className="btn main" onClick={submit}>
+          바꾸고 들어가기
+        </button>
+        {err && (
+          <>
+            <label />
+            <span className="bad">{err}</span>
+          </>
+        )}
+        <label />
+        <button className="linkbtn" onClick={onBack}>
+          ← 로그인으로 돌아가기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Login({ status, onOk }: { status: Status; onOk: () => void }) {
   const [name, setName] = useState(status.names[0] ?? '');
   const [password, setPassword] = useState('');
   const [household, setHousehold] = useState('우리집 가계부');
   const [err, setErr] = useState('');
+  const [recover, setRecover] = useState(false);
   async function submit() {
     setErr('');
     try {
@@ -43,6 +112,7 @@ function Login({ status, onOk }: { status: Status; onOk: () => void }) {
       setErr(e instanceof Error ? e.message : String(e));
     }
   }
+  if (recover) return <Recover names={status.names} onOk={onOk} onBack={() => setRecover(false)} />;
   return (
     <div className="login">
       <h1>{status.setup ? '가계부 시작하기' : '우리집 가계부'}</h1>
@@ -76,6 +146,14 @@ function Login({ status, onOk }: { status: Status; onOk: () => void }) {
           <>
             <label />
             <span className="bad">{err}</span>
+          </>
+        )}
+        {!status.setup && (
+          <>
+            <label />
+            <button className="linkbtn" onClick={() => setRecover(true)}>
+              비밀번호를 잊었어요
+            </button>
           </>
         )}
       </div>
