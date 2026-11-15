@@ -8,6 +8,8 @@ import { Valuations } from './Valuations';
 import { DAILY_KINDS, isPinned, type AccountWithBalance, type Boot, type Toast } from './data';
 import { DateInput } from './DateInput';
 
+const signed = (n: number) => (n < 0 ? '-' : '') + won(Math.abs(n));
+
 export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; reloadBoot: () => void }) {
   const [list, setList] = useState<AccountWithBalance[] | null>(null);
   const [inv, setInv] = useState<Investment[]>([]);
@@ -15,11 +17,13 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
   const [editInv, setEditInv] = useState<Partial<Investment> | null>(null);
   // 시작 잔액 칸 글자 (마이너스 입력 중 '-'만 있는 상태도 지키려고 따로 둠)
   const [startText, setStartText] = useState('');
+  const [nowText, setNowText] = useState(''); // '지금 실제 잔액으로 맞추기' 칸
   const editKey = edit === null ? null : (edit.id ?? 'new');
   useEffect(() => {
     if (editKey === null) return;
     const n = edit?.startBalance ?? 0;
     setStartText(n === 0 ? '' : (n < 0 ? '-' : '') + won(Math.abs(n)));
+    setNowText('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editKey]);
   const load = useCallback(() => {
@@ -177,6 +181,31 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
                   setStartText(n === null ? (/^\s*[-−]/.test(v) ? '-' : '') : (n < 0 ? '-' : '') + won(Math.abs(n)));
                 }} placeholder="0" />
               <span className="muted small">카드처럼 갚을 돈이 남아 있으면 앞에 - 를 붙여요. 예: -120,000</span>
+              {edit.id && edit.balance !== undefined && (
+                <>
+                  <label>지금 실제 잔액</label>
+                  <div className="col" style={{ gap: 4 }}>
+                    <div className="row">
+                      <input className="text money" inputMode="text" value={nowText} placeholder={signed(edit.balance)} onChange={(e) => {
+                          const v = e.target.value.replace(/[^\d,\-−]/g, '');
+                          const n = parseSignedAmount(v);
+                          setNowText(n === null ? (/^\s*[-−]/.test(v) ? '-' : '') : signed(n));
+                        }} />
+                      <button className="btn sm" disabled={parseSignedAmount(nowText) === null} onClick={() => {
+                          const real = parseSignedAmount(nowText);
+                          if (real === null || edit.balance === undefined) return;
+                          const start = (edit.startBalance ?? 0) + (real - edit.balance);
+                          setStartText(signed(start));
+                        }}>
+                        이 잔액으로 맞추기
+                      </button>
+                    </div>
+                    <span className="muted small">
+                      가계부 잔액은 지금 <b>{signed(edit.balance)}원</b>이에요. 은행·카드 앱에 보이는 지금 금액(카드는 갚을 돈을 - 로)을 넣고 누르면, 시작 잔액이 알아서 바뀌어요. 그다음 저장을 눌러 주세요.
+                    </span>
+                  </div>
+                </>
+              )}
               <label />
               <label className="check">
                 <input type="checkbox" checked={edit.pin ?? DAILY_KINDS.includes(edit.kind ?? '')} onChange={(e) => setEdit({ ...edit, pin: e.target.checked })} /> 거래 화면 잔액에 보이기
