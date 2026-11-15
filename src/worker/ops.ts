@@ -1305,7 +1305,7 @@ export async function saveYearNote(env: Env, user: User, input: { year?: unknown
   return { ok: true };
 }
 
-/** 가계부 이름 바꾸기 (예: 우리집 가계부) — 위 메뉴·카페 이미지에 나옴 */
+/** 가계부 이름 바꾸기 (예: 다희네 가계부) — 위 메뉴·카페 이미지에 나옴 */
 export async function setHousehold(env: Env, user: User, name: unknown) {
   const n = text(name, 30);
   if (!n) throw new UserError('가계부 이름을 넣어 주세요.');
@@ -1325,4 +1325,138 @@ export async function resetMemberPassword(env: Env, owner: User, input: { userId
   await env.DB.batch([env.DB.prepare('UPDATE users SET pw_hash = ?, pw_salt = ? WHERE id = ?').bind(hash, salt, id), env.DB.prepare('DELETE FROM login_fails').bind()]);
   await log(env, owner.name, 'user.password.reset', { name: target.name });
   return { ok: true };
+}
+
+// ---------- 노션에서 가져오기 ----------
+// 브라우저가 노션 내보내기(zip/csv)를 읽어 이름 그대로 보내면, 여기서 이름 → id 로 맞춰 넣는다.
+// 가져온 거래·머니노트는 created_by = '노션 가져오기' 로 표시 → '다시 가져오기' 때 그것만 지우고 새로 넣는다.
+const NOTION = '노션 가져오기';
+const GRPS = ['var', 'fix', 'spc', 'inc', 'sav', 'inv'];
+type NIn = Record<string, unknown>;
+const arr = (v: unknown): NIn[] => (Array.isArray(v) ? (v as NIn[]) : []);
+const s = (v: unknown, max = 200) => String(v ?? '').trim().slice(0, max);
+const okMonth = (v: unknown) => (typeof v === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(v) ? v : null);
+const okDate = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+const amt = (v: unknown) => {
+  const n = Math.round(Number(v));
+  return Number.isSafeInteger(n) ? n : 0;
+};
+
+async function nameMaps(env: Env) {
+  const [cats, accs] = await Promise.all([getCategories(env), getAccounts(env)]);
+  return { cat: new Map(cats.map((c) => [c.name, c.id])), acc: new Map(accs.map((a) => [a.name, a.id])) };
+}
+
+export async function importNotionSetup(env: Env, user: User, input: NIn) {
+  if (user.role !== 'owner') throw new UserError('관리자만 할 수 있어요.');
+  const before = await getSetting(env, 'notion_imported');
+  // 'manual' = 노션 자료를 이 기능 없이 따로 옮겨 둔 가계부 → 다시 넣으면 거래가 두 번 들어가므로 막는다
+  if (before === 'manual') throw new UserError('이 가계부에는 노션 자료가 이미 따로 옮겨져 있어서, 여기서 가져오면 거래가 두 번 들어가요. 그래서 막아 두었어요.');
+  if (before && input.replace !== true) return { already: before };
+  const now = Date.now();
+  if (before) {
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM transactions WHERE created_by = ?').bind(NOTION),
+      env.DB.prepare('DELETE FROM money_notes WHERE created_by = ?').bind(NOTION),
+    ]);
+  }
+  const stmts: D1PreparedStatement[] = [];
+  let { cat, acc } = await nameMaps(env);
+
+  // 통장: 이름이 같으면 종류·시작 잔액을 노션 것으로
+  let sort = (await first(env, 'SELECT MAX(sort) AS m FROM accounts', [], (r) => Number(r.m ?? 0))) ?? 0;
+  for (const a of arr(input.accounts)) {
+    const name = s(a.name, 30);
+    if (!name) continue;
+    const kind = (ACCOUNT_KINDS as readonly string[]).includes(String(a.kind)) ? String(a.kind) : '은행';
+    const start = amt(a.start);
+    const id = acc.get(name);
+    if (id) stmts.push(env.DB.prepare('UPDATE accounts SET kind = ?, start_balance = ? WHERE id = ?').bind(kind, start, id));
+    else {
+      const nid = newId();
+      acc.set(name, nid);
+      stmts.push(env.DB.prepare('INSERT INTO accounts (id, name, kind, start_balance, sort, hidden, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)').bind(nid, name, kind, start, ++sort, now));
+    }
+  }
+  // 카테고리: 이름이 같으면 대분류·기본 예산을 노션 것으로
+  let csort = (await first(env, 'SELECT MAX(sort) AS m FROM categories', [], (r) => Number(r.m ?? 0))) ?? 0;
+  const notionCats = new Set<string>();
+  for (const c of arr(input.categories)) {
+    const name = s(c.name, 30);
+    if (!name) continue;
+    notionCats.add(name);
+    const grp = GRPS.includes(String(c.grp)) ? String(c.grp) : 'var';
+    const budget = Math.max(0, amt(c.budget));
+    const mn = c.moneynote === true ? 1 : 0;
+    const id = cat.get(name);
+    if (id) stmts.push(env.DB.prepare('UPDATE categories SET grp = ?, budget = ?, moneynote = ?, hidden = 0 WHERE id = ?').bind(grp, budget, mn, id));
+    else {
+      const nid = newId();
+      cat.set(name, nid);
+      stmts.push(env.DB.prepare("INSERT INTO categories (id, name, grp, icon, emoji, budget, sort, hidden, created_at, moneynote) VALUES (?, ?, ?, '', '', ?, ?, 0, ?, ?)").bind(nid, name, grp, budget, ++csort, now, mn));
+    }
+  }
+  if (stmts.length) await env.DB.batch(stmts);
+  ({ cat, acc } = await nameMaps(env));
+
+  // 노션에 없는 기본 카테고리 숨기기 (거래가 하나도 없는 것만)
+  if (input.hideUnused === true && notionCats.size) {
+    const list = await getCategories(env);
+    const hide = list.filter((c) => !notionCats.has(c.name));
+    const used = new Set(await all(env, 'SELECT DISTINCT category_id AS id FROM transactions WHERE category_id IS NOT NULL', [], (r) => String(r.id)));
+    const st = hide.filter((c) => !used.has(c.id)).map((c) => env.DB.prepare('UPDATE categories SET hidden = 1 WHERE id = ?').bind(c.id));
+    if (st.length) await env.DB.batch(st);
+  }
+
+  const more: D1PreparedStatement[] = [];
+  for (const b of arr(input.budgets)) {
+    const id = cat.get(s(b.category, 30));
+    const month = okMonth(b.month);
+    if (!id || !month) continue;
+    more.push(env.DB.prepare('INSERT INTO budgets (category_id, month, amount) VALUES (?, ?, ?) ON CONFLICT (category_id, month) DO UPDATE SET amount = excluded.amount').bind(id, month, Math.max(0, amt(b.amount))));
+  }
+  for (const n of arr(input.notes)) {
+    const id = cat.get(s(n.category, 30));
+    const month = okMonth(n.month);
+    if (!id || !month || amt(n.amount) <= 0) continue;
+    more.push(env.DB.prepare('INSERT INTO money_notes (id, category_id, month, title, amount, memo, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(newId(), id, month, s(n.title, 60) || '머니노트', amt(n.amount), '노션 머니플랜에서 옮김', NOTION, now, now));
+  }
+  // 고정지출 목록 → '한꺼번에 넣기' 목록 (같은 이름이 이미 있으면 그대로)
+  const haveFixed = new Set(await all(env, 'SELECT title FROM recurring', [], (r) => String(r.title)));
+  const startMonth = okMonth(input.fixedStart) ?? monthOf(today());
+  let rsort = 0;
+  for (const f of arr(input.fixed)) {
+    const title = s(f.title, 60);
+    if (!title || haveFixed.has(title) || amt(f.amount) <= 0) continue;
+    haveFixed.add(title);
+    more.push(
+      env.DB.prepare(
+        "INSERT INTO recurring (id, title, category_id, amount, day, from_account, to_account, start_month, end_month, active, memo, mode, sort, created_at) VALUES (?, ?, ?, ?, 1, ?, NULL, ?, NULL, 1, ?, 'batch', ?, ?)",
+      ).bind(newId(), title, cat.get(s(f.category, 30)) ?? null, amt(f.amount), acc.get(s(f.from, 30)) ?? null, startMonth, '노션 고정지출목록에서 옮김', ++rsort, now),
+    );
+  }
+  for (let i = 0; i < more.length; i += 200) await env.DB.batch(more.slice(i, i + 200));
+  await setSetting(env, 'notion_imported', new Date(now).toISOString().slice(0, 10));
+  await log(env, user.name, 'notion.import.setup', { replace: !!before });
+  return { ok: true };
+}
+
+export async function importNotionTx(env: Env, user: User, input: NIn) {
+  if (user.role !== 'owner') throw new UserError('관리자만 할 수 있어요.');
+  const list = arr(input.tx).slice(0, 300);
+  const { cat, acc } = await nameMaps(env);
+  const now = Date.now();
+  const stmts: D1PreparedStatement[] = [];
+  for (const t of list) {
+    const date = okDate(t.date);
+    const amount = Math.abs(amt(t.amount));
+    if (!date || !amount) continue;
+    stmts.push(
+      env.DB.prepare('INSERT INTO transactions (id, date, title, amount, category_id, from_account, to_account, memo, unnecessary, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+        newId(), date, s(t.title, 100) || '(내역 없음)', amount, cat.get(s(t.category, 30)) ?? null, acc.get(s(t.from, 30)) ?? null, acc.get(s(t.to, 30)) ?? null, s(t.memo, 300), t.unnecessary === true ? 1 : 0, NOTION, now, now,
+      ),
+    );
+  }
+  if (stmts.length) await env.DB.batch(stmts);
+  return { ok: true, added: stmts.length };
 }

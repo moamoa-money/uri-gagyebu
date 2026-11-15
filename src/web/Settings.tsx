@@ -5,9 +5,10 @@ import { isSpending, type Category, type Group, type Recurring } from '../shared
 import { api } from './api';
 import { GROUP_ICON, Icon, ICONS, iconKey } from './Icon';
 import type { Boot, Toast } from './data';
+import { NotionImport } from './NotionImport';
 
 export function Settings({ boot, onError, toast, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; reloadBoot: () => void }) {
-  const [tab, setTab] = useState<'cat' | 'rec' | 'family' | 'feature'>('cat');
+  const [tab, setTab] = useState<'cat' | 'rec' | 'family' | 'feature' | 'notion'>('cat');
   return (
     <>
       <div className="tabs">
@@ -17,6 +18,7 @@ export function Settings({ boot, onError, toast, reloadBoot }: { boot: Boot; onE
             ['rec', '고정지출', '매월 자동'],
             ['family', '가족', '비밀번호'],
             ['feature', '더 쓰는', '기능'],
+            ...(boot.user.role === 'owner' ? ([['notion', '노션에서', '가져오기']] as const) : []),
           ] as const
         ).map(([k, a, b]) => (
           <button key={k} className={`tab2 ${tab === k ? 'on' : ''}`} onClick={() => setTab(k)}>
@@ -27,6 +29,7 @@ export function Settings({ boot, onError, toast, reloadBoot }: { boot: Boot; onE
       {tab === 'cat' && <Categories boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} />}
       {tab === 'rec' && <RecurringList boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} />}
       {tab === 'family' && <Family boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} />}
+      {tab === 'notion' && <NotionImport onDone={() => { reloadBoot(); toast('노션에서 다 가져왔어요'); }} onError={onError} />}
       {tab === 'feature' && <Features boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} />}
     </>
   );
@@ -481,7 +484,7 @@ function HouseholdName({ boot, onError, toast, reloadBoot }: P) {
     <div className="card" style={{ maxWidth: 520 }}>
       <h3>가계부 이름</h3>
       <div className="row">
-        <input className="text" value={v} maxLength={30} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} placeholder="예: 우리집 가계부" />
+        <input className="text" value={v} maxLength={30} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} placeholder="예: 다희네 가계부" />
         <button className="btn main" disabled={!v.trim() || v.trim() === boot.household} onClick={save}>
           저장
         </button>
