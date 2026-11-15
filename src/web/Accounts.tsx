@@ -180,10 +180,11 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
                   const n = parseSignedAmount(v);
                   setStartText(n === null ? (/^\s*[-−]/.test(v) ? '-' : '') : (n < 0 ? '-' : '') + won(Math.abs(n)));
                 }} placeholder="0" />
+              <label />
               <span className="muted small">카드처럼 갚을 돈이 남아 있으면 앞에 - 를 붙여요. 예: -120,000</span>
               {edit.id && edit.balance !== undefined && (
                 <>
-                  <label>지금 실제 잔액</label>
+                  <label style={{ alignSelf: 'start', paddingTop: 10 }}>지금 실제 잔액</label>
                   <div className="col" style={{ gap: 4 }}>
                     <div className="row">
                       <input className="text money" inputMode="text" value={nowText} placeholder={signed(edit.balance)} onChange={(e) => {
