@@ -4,6 +4,7 @@ import { parseAmount, won } from '../shared/rules';
 import { isSpending, type Group } from '../shared/types';
 import { api } from './api';
 import type { Boot } from './data';
+import { DateInput } from './DateInput';
 
 type Kind = Group | 'transfer';
 const KINDS: { key: Kind; name: string }[] = [
@@ -75,7 +76,7 @@ export function TxRow({ boot, onSaved, onError }: { boot: Boot; onSaved: () => v
   return (
     <tr className="newrow" onKeyDown={enter}>
       <td>
-        <input className="cell" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <DateInput className="cell" value={date} onChange={setDate} />
       </td>
       <td>
         <input ref={titleRef} className="cell" placeholder="내역" value={title} onChange={(e) => setTitle(e.target.value)} />

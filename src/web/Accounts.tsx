@@ -6,6 +6,7 @@ import { api } from './api';
 import { LoanSchedules } from './Loans';
 import { Valuations } from './Valuations';
 import { DAILY_KINDS, isPinned, type AccountWithBalance, type Boot, type Toast } from './data';
+import { DateInput } from './DateInput';
 
 export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; reloadBoot: () => void }) {
   const [list, setList] = useState<AccountWithBalance[] | null>(null);
@@ -234,9 +235,9 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
                 ))}
               </select>
               <label>시작일</label>
-              <input className="text" type="date" value={editInv.startDate ?? ''} onChange={(e) => setEditInv({ ...editInv, startDate: e.target.value || null })} />
+              <DateInput value={editInv.startDate ?? ''} onChange={(v) => setEditInv({ ...editInv, startDate: v || null })} />
               <label>만기일</label>
-              <input className="text" type="date" value={editInv.maturity ?? ''} onChange={(e) => setEditInv({ ...editInv, maturity: e.target.value || null })} />
+              <DateInput value={editInv.maturity ?? ''} onChange={(v) => setEditInv({ ...editInv, maturity: v || null })} />
               <label>메모</label>
               <input className="text" value={editInv.memo ?? ''} onChange={(e) => setEditInv({ ...editInv, memo: e.target.value })} />
               <label />

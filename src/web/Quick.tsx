@@ -6,6 +6,7 @@ import { isSpending, type Group, type Tx } from '../shared/types';
 import { api } from './api';
 import type { Boot, Toast, TxList } from './data';
 import { Icon } from './Icon';
+import { DateInput } from './DateInput';
 
 type Kind = Group | 'transfer';
 const KINDS: { key: Kind; name: string }[] = [
@@ -138,7 +139,7 @@ export function Quick({ boot, onError, toast, go, embedded = false, onSaved }: {
         )}
         <label>
           <small>날짜</small>
-          <input className="text" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateInput value={date} onChange={setDate} />
         </label>
       </div>
 

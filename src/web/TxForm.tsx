@@ -4,6 +4,7 @@ import { parseAmount, won } from '../shared/rules';
 import { isSpending, type Group, type Tx } from '../shared/types';
 import { api } from './api';
 import type { Boot } from './data';
+import { DateInput } from './DateInput';
 
 type Kind = Group | 'transfer';
 const KINDS: { key: Kind; name: string }[] = [
@@ -68,7 +69,7 @@ export function TxForm({ boot, tx, onDone, onCancel, onError }: { boot: Boot; tx
   return (
     <div className="vform">
       <label>날짜</label>
-      <input className="text" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <DateInput value={date} onChange={setDate} />
 
       <label>대분류</label>
       <select

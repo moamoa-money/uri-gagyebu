@@ -9,6 +9,7 @@ import { isPinned, type AccountWithBalance, type Boot, type Toast, type TxList }
 import { TxForm } from './TxForm';
 import { TxRow } from './TxRow';
 import { BatchFixed } from './BatchFixed';
+import { DateInput } from './DateInput';
 
 type Period = 'week' | 'lastweek' | 'month' | 'last' | 'year' | 'all' | 'custom';
 
@@ -168,8 +169,8 @@ export function Transactions({ boot, onError, toast, initial }: { boot: Boot; on
             ))}
             {period === 'custom' && (
               <>
-                <input className="text sm" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /> 부터
-                <input className="text sm" type="date" value={to} onChange={(e) => setTo(e.target.value)} /> 까지
+                <DateInput className="text sm" value={from} onChange={setFrom} /> 부터
+                <DateInput className="text sm" value={to} onChange={setTo} /> 까지
               </>
             )}
             <span className="spacer" />

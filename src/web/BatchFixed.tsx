@@ -6,6 +6,7 @@ import { parseAmount, won } from '../shared/rules';
 import type { Recurring } from '../shared/types';
 import { api } from './api';
 import type { Boot, Toast } from './data';
+import { DateInput } from './DateInput';
 
 type Item = Recurring & { suggest: number; suggestFrom: string; added: { id: string; date: string; amount: number } | null };
 
@@ -113,7 +114,7 @@ export function BatchFixed({ boot, onError, toast, onSaved }: { boot: Boot; onEr
           {left.length > 0 && (
             <div className="row" style={{ marginTop: 8 }}>
               <span>넣을 날짜</span>
-              <input className="text sm" type="date" value={date} min={`${month}-01`} max={`${month}-31`} onChange={(e) => setDate(e.target.value)} />
+              <DateInput className="text sm" value={date} min={`${month}-01`} max={`${month}-31`} onChange={setDate} />
               <span className="spacer" />
               <span>
                 {chosen.length}개 · 합계 <b>{won(total)}원</b>
