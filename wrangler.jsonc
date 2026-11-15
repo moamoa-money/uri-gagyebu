@@ -1,0 +1,10 @@
+// 우리집 가계부 — Cloudflare Workers (화면 + 서버) + D1
+// Deploy 버튼으로 설치하면 D1 저장소(gagyebu-db)가 자동으로 만들어져요. database_id는 비워 둡니다.
+{
+  "name": "uri-gagyebu",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
+  "d1_databases": [{ "binding": "DB", "database_name": "gagyebu-db", "migrations_dir": "migrations" }],
+  "triggers": { "crons": ["0 15 * * *"] }
+}

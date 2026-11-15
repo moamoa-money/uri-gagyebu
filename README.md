@@ -1,0 +1,27 @@
+# 🌱 우리집 가계부
+
+노션·엑셀로 하던 가계부, 월말 결산, 재테크 로드맵을 한 곳에서 — 휴대폰에서도, 가족과 함께.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/moamoa-money/uri-gagyebu)
+
+## 이런 기능이 있어요
+- 거래 기록 · 통장 잔액 자동 계산 · 휴대폰 빠른 입력(홈 화면에 앱처럼 추가)
+- 고정지출 목록 한꺼번에 넣기 · 대출 상환표
+- 월말 결산(예산 vs 실제, 원인·다짐) · 카페에 올릴 이미지 자동 생성
+- 머니플랜 · 머니노트(1년 특별지출)
+- 단기로드맵(올해 저축 목표 vs 실제) · 중장기로드맵(30년 자산 계획)
+- 연간 결산(한 해 회고 + 새해 계획)
+- 가족이 각자 로그인해 함께 쓰기
+
+## 설치 (무료)
+1. GitHub와 Cloudflare 계정을 만듭니다(둘 다 무료).
+2. 위의 **Deploy to Cloudflare** 버튼을 누르고 안내대로 "다음"을 누릅니다.
+3. 만들어진 주소로 들어가 가계부 이름·이름·비밀번호를 정하면 바로 쓸 수 있어요.
+
+데이터는 설치한 사람의 Cloudflare 계정에만 저장됩니다.
+
+## 사용 조건
+개인·가족의 비상업적 사용만 허락합니다 — [PolyForm Noncommercial 1.0.0](LICENSE).
+판매하거나 유료·상업 서비스로 쓰는 것은 금지합니다.
+
+© 2026 moamoa-money
