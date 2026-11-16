@@ -13,6 +13,11 @@ import { Settings } from './Settings';
 import { Transactions } from './Transactions';
 import './styles.css';
 
+// 앱 아이콘(Dock·홈 화면)으로 열면 '빠른 입력'부터 열리게 되어 있다(휴대폰용).
+// 넓은 화면(컴퓨터·Dock)에서 처음 열 때는 홈부터 보여 준다.
+if (location.hash === '#/quick' && window.innerWidth >= 900 && !sessionStorage.getItem('gb_opened')) history.replaceState(null, '', `${location.pathname}#/`);
+sessionStorage.setItem('gb_opened', '1');
+
 function useRoute() {
   const [hash, setHash] = useState(location.hash || '#/');
   useEffect(() => {
