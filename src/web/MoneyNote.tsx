@@ -1,6 +1,6 @@
 // 머니노트: 해마다 오는 지출(재산세·명절·생일·여행·계절 옷…)을 1년 × 12달 표에 미리 적어 두는 곳.
 // 적어 둔 달은 그 합이 그 카테고리의 그달 예산이 된다 (안 적은 달은 그달 예산·기본 예산). 한 칸에 여러 줄(예: 추석 양가 40만 + 엄마 생일 10만).
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { parseAmount, won } from '../shared/rules';
 import { api } from './api';
 import type { Boot, Toast } from './data';
@@ -27,6 +27,9 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false 
   const setYear = (y: string) => go(`#/plan?tab=note&year=${y}`);
   const [d, setD] = useState<Data | null>(null);
   const [sel, setSel] = useState<{ categoryId: string; month: string } | null>(initial?.month && initial?.category ? { categoryId: initial.category, month: initial.month } : null);
+  // 항목별로 펼쳐 보기 (엑셀처럼 카테고리 아래에 '엄마 생신'·'명절' 줄). 기기마다 기억
+  const [expand, setExpandState] = useState(() => localStorage.getItem('mn-expand') === '1');
+  const setExpand = (v: boolean) => (localStorage.setItem('mn-expand', v ? '1' : '0'), setExpandState(v));
   const load = useCallback(() => api<Data>(`/money-notes?year=${year}`).then(setD).catch(onError), [year, onError]);
   useEffect(() => void load(), [load]);
 
@@ -67,6 +70,9 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false 
           )}
           <span className="muted">특별지출(생신·명절·재산세·정기 검진·여행…)을 달마다 미리 적어요 → 1년 총액은 미리 떼어 둘 돈, 그달 예산에도 들어가요</span>
           <span className="spacer" />
+          <label className="check">
+            <input type="checkbox" checked={expand} onChange={(e) => setExpand(e.target.checked)} /> 항목별로 펼쳐 보기
+          </label>
           <button className="btn sm" onClick={copyPrev}>
             {Number(year) - 1}년 머니노트 불러오기
           </button>
@@ -95,7 +101,8 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false 
                 </thead>
                 <tbody>
                   {cats.map((c) => (
-                    <tr key={c.id}>
+                    <Fragment key={c.id}>
+                    <tr className={expand ? 'mn-cat' : ''}>
                       <td>
                         <span className="withico">
                           <Icon name={c.icon} /> <b>{c.name}</b>
@@ -125,6 +132,22 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false 
                         <b>{won(MONTHS.reduce((n, m) => n + cellSum(c.id, m), 0))}</b>
                       </td>
                     </tr>
+                    {expand &&
+                      [...new Set(d.notes.filter((n) => n.categoryId === c.id).map((n) => n.title.trim()))].map((t) => {
+                        const amt = (m: string) => notesOf(c.id, m).filter((n) => n.title.trim() === t).reduce((a, n) => a + n.amount, 0);
+                        return (
+                          <tr key={t} className="mn-item">
+                            <td>{t || '(이름 없음)'}</td>
+                            {MONTHS.map((m) => (
+                              <td key={m} className={`r cell-click ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => setSel({ categoryId: c.id, month: `${year}-${m}` })}>
+                                {amt(m) ? won(amt(m)) : ''}
+                              </td>
+                            ))}
+                            <td className="r">{won(MONTHS.reduce((a, m) => a + amt(m), 0))}</td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
                   ))}
                   <tr className="sum">
                     <td>달 합계</td>

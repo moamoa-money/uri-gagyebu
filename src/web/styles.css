@@ -595,3 +595,8 @@ tr.dragging td { background: #eef5f1; }
 tr.dragging .drag-handle { cursor: grabbing; color: var(--accent); }
 .del-box { border: 1px solid #f0c9c4; background: #fdf5f4; border-radius: 10px; padding: 10px 12px; }
 .del-box p { margin: 0 0 6px; }
+
+/* 머니노트 항목별로 펼쳐 보기 */
+table.mnote tr.mn-cat td { background: #f6f3ee; }
+table.mnote tr.mn-item td { font-size: 13.5px; color: #4a4540; }
+table.mnote tr.mn-item td:first-child { padding-left: 34px; }
