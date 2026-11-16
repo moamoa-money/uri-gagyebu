@@ -146,9 +146,7 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                   {cats.map((c) => (
                     <tr key={c.id} data-cat={c.id} data-grp={g.key} className={`${c.hidden ? 'dim' : ''} ${drag?.id === c.id ? 'dragging' : ''}`}>
                       <td>
-                        <span className="drag-handle" title="꾹 누른 채 위아래로 끌면 순서가 바뀌어요" onPointerDown={(e) => dragStart(e, g.key, c.id, base.map((x) => x.id))} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd}>
-                          ⋮⋮
-                        </span>
+                        
                         <Icon name={c.icon} /> <b>{c.name}</b> {c.hidden && <span className="tag">숨김</span>}
                       </td>
                       <td className="r">
@@ -158,6 +156,9 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                         <button className="btn sm" onClick={() => (setDel(null), setEdit({ ...c }))}>
                           고치기
                         </button>
+                        <span className="drag-handle" title="꾹 누른 채 위아래로 끌면 순서가 바뀌어요" onPointerDown={(e) => dragStart(e, g.key, c.id, base.map((x) => x.id))} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+                        </span>
                       </td>
                     </tr>
                   ))}

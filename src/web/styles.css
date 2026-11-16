@@ -589,7 +589,7 @@ button { -webkit-appearance: none; appearance: none; }
 .asset-pick p { grid-column: 1 / -1; margin: 4px 0 0; }
 
 /* 카테고리 끌어서 순서 바꾸기 · 지우기 */
-.drag-handle { display: inline-block; width: 22px; margin-right: 4px; color: #b5aca3; cursor: grab; touch-action: none; user-select: none; letter-spacing: -3px; font-weight: 700; text-align: center; }
+.drag-handle { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 32px; margin-left: 6px; vertical-align: middle; color: #b5aca3; cursor: grab; touch-action: none; user-select: none; }
 .drag-handle:hover { color: var(--accent); }
 tr.dragging td { background: #eef5f1; }
 tr.dragging .drag-handle { cursor: grabbing; color: var(--accent); }
