@@ -40,7 +40,7 @@ export function DateInput({ value, onChange, className = 'text', min, max }: { v
     // 표가 옆으로 밀리는 상자 안에 있어도 잘리지 않게 화면 기준(fixed)으로 띄운다
     const r = box.current?.getBoundingClientRect();
     if (r) {
-      const W = 340, H = 390;
+      const W = 300, H = 340;
       const left = Math.max(8, Math.min(r.left, window.innerWidth - W - 8));
       const top = r.bottom + 6 + H > window.innerHeight && r.top - 6 - H > 0 ? r.top - 6 - H : r.bottom + 6;
       setPos({ top, left });
