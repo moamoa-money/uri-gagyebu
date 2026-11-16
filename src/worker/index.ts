@@ -20,7 +20,7 @@ import {
   saveRecurring,
   saveTx,
   setMonthBudget,
-  setup, setBalanceAccounts, setSaveBasis, setYearTarget, yearView, reviewView, saveReviewNote, saveReviewCause, pledgesFor, savePledge, deletePledge, setPledgeResult, assetsView, undoMonthBudget, listMoneyNotes, saveMoneyNote, deleteMoneyNote, planView, setPlanCell, copyMoneyNotes, saveBudgetNote, shortRoadmap, setRoadmapInclude, longRoadmap, setupLongRoadmap, setLongYears, setLongMilestones, saveLongRow, saveLongNote, saveLongVersion, getLongVersion, setAssetActual, setAccountInAssets, loansView, setFeatureLoan, saveLoanSchedule, saveLoanLink, valuationsView, setValuation, batchView, saveBatch, carryLongRoadmap, annualView, saveYearRecord, saveYearNote, setHousehold, resetMemberPassword, notionImportStatus, clearNotionImport } from './ops';
+  setup, setBalanceAccounts, setSaveBasis, setYearTarget, yearView, reviewView, saveReviewNote, saveReviewCause, pledgesFor, savePledge, deletePledge, setPledgeResult, assetsView, undoMonthBudget, listMoneyNotes, saveMoneyNote, deleteMoneyNote, planView, setPlanCell, copyMoneyNotes, saveBudgetNote, shortRoadmap, setRoadmapInclude, longRoadmap, setupLongRoadmap, setLongYears, setLongMilestones, saveLongRow, saveLongNote, saveLongVersion, getLongVersion, setAssetActual, setAccountInAssets, loansView, setFeatureLoan, saveLoanSchedule, saveLoanLink, valuationsView, setValuation, batchView, saveBatch, carryLongRoadmap, annualView, saveYearRecord, saveYearNote, setHousehold, resetMemberPassword, setAssetTrendExclude, notionImportStatus, clearNotionImport } from './ops';
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
@@ -74,6 +74,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (path === '/tx' && method === 'POST') return json(await saveTx(env, user, body as never));
     if ((m = path.match(/^\/tx\/([\w-]+)\/delete$/)) && method === 'POST') return json(await deleteTx(env, user, m[1]));
     if (path === '/year') return json(await yearView(env, q.get('year') ?? ''));
+    if (path === '/assets/exclude' && method === 'POST') return json(await setAssetTrendExclude(env, user, body));
     if (path === '/assets') return json(await assetsView(env, q.get('upto') ?? ''));
     if (path === '/budgets/undo' && method === 'POST') return json(await undoMonthBudget(env, user, body));
     if (path === '/roadmap/short/include' && method === 'POST') return json(await setRoadmapInclude(env, user, body));

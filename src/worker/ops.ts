@@ -612,7 +612,21 @@ export async function assetsView(env: Env, upto: string) {
     for (const a of accounts) sum[ASSET_GROUP[a.kind] ?? 'live'] += bal.get(a.id) ?? 0;
     return { month: m, ...sum, assets: sum.live + sum.save, net: sum.live + sum.save + sum.loan, byAccount: Object.fromEntries(accounts.map((a) => [a.id, bal.get(a.id) ?? 0])) };
   });
-  return { accounts: accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, group: ASSET_GROUP[a.kind] ?? 'live', hidden: a.hidden })), months: rows };
+  let exclude: string[] = [];
+  try {
+    exclude = JSON.parse((await getSetting(env, 'asset_trend_exclude')) ?? '[]');
+  } catch {
+    exclude = [];
+  }
+  return { accounts: accounts.map((a) => ({ id: a.id, name: a.name, kind: a.kind, group: ASSET_GROUP[a.kind] ?? 'live', hidden: a.hidden })), months: rows, exclude };
+}
+
+/** 자산 추이에서 뺄 통장 (가족 공용) */
+export async function setAssetTrendExclude(env: Env, user: User, input: { ids?: unknown }) {
+  const ids = Array.isArray(input.ids) ? input.ids.map(String).slice(0, 200) : [];
+  await setSetting(env, 'asset_trend_exclude', JSON.stringify(ids));
+  await log(env, user.name, 'assets.exclude', { n: ids.length });
+  return { ok: true };
 }
 
 /** 가장 최근에 바꾼 달별 예산을 바꾸기 전 값으로 되돌린다 */

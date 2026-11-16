@@ -634,14 +634,34 @@ function GoalSection({ grp, d, boot, onError, reload, toast }: { grp: 'inc' | 's
 
 // ---------- ⑥ 자산 추이 ----------
 interface AssetRow { month: string; live: number; save: number; loan: number; assets: number; net: number; byAccount: Record<string, number> }
-interface AssetData { accounts: { id: string; name: string; kind: string; group: 'live' | 'save' | 'loan'; hidden: boolean }[]; months: AssetRow[] }
+interface AssetData { accounts: { id: string; name: string; kind: string; group: 'live' | 'save' | 'loan'; hidden: boolean }[]; months: AssetRow[]; exclude?: string[] }
 
 export function AssetTrend({ month, boot, onError }: { month: string; boot: Boot; onError: (e: unknown) => void }) {
   const [a, setA] = useState<AssetData | null>(null);
   const [table, setTable] = useState(false);
   useEffect(() => void api<AssetData>(`/assets?upto=${month}`).then(setA).catch(onError), [month, onError]);
+  const [pick, setPick] = useState(false);
   if (!a) return <p className="muted">불러오는 중…</p>;
-  const rows = a.months;
+  // 자산 추이에 넣을 통장 고르기: 뺀 통장은 합계에서 빼고 다시 계산
+  const ex = new Set(a.exclude ?? []);
+  const rows = a.months.map((r) => {
+    const sum = { live: 0, save: 0, loan: 0 };
+    for (const acc of a.accounts) if (!ex.has(acc.id)) sum[acc.group] += r.byAccount[acc.id] ?? 0;
+    return { ...r, ...sum, assets: sum.live + sum.save, net: sum.live + sum.save + sum.loan };
+  });
+  const toggle = async (id: string) => {
+    const next = new Set(ex);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    const ids = [...next];
+    setA({ ...a, exclude: ids });
+    try {
+      await api('/assets/exclude', { ids });
+    } catch (e) {
+      onError(e);
+    }
+  };
+  const GROUP_NAME = { live: '생활 통장', save: '저축·투자', loan: '대출' } as const;
   const now = rows[rows.length - 1];
   const first = rows[0];
   const prev = rows[rows.length - 2];
@@ -650,7 +670,7 @@ export function AssetTrend({ month, boot, onError }: { month: string; boot: Boot
   const stat = (name: string, v: number, from: number, sub?: string) => (
     <div className="tile">
       <small>{name}</small>
-      <b className={v < 0 ? 'bad' : ''}>{won(v)}</b>
+      <b className={v < 0 ? 'bad' : ''}>{won(v || 0)}</b>
       <div className="muted small">
         {prev ? `전달보다 ${diff(v - (sub === 'loan' ? -prev.loan : sub === 'assets' ? prev.assets : prev.net))}` : ''}
         {rows.length > 1 && ` · 1월보다 ${diff(v - from)}`}
@@ -668,10 +688,31 @@ export function AssetTrend({ month, boot, onError }: { month: string; boot: Boot
         <h3 className="row">
           모은 자산 <span className="muted small">— 달마다 말일 잔액 · 생활 통장 + 저축·투자 통장 · 단위 만 원</span>
           <span className="spacer" />
+          <button className="btn sm" onClick={() => setPick(!pick)}>
+            넣을 통장 고르기{ex.size ? ` (${ex.size}개 뺌)` : ''}
+          </button>
           <button className="btn sm" onClick={() => setTable(!table)}>
             {table ? '그래프로 보기' : '표로 보기'}
           </button>
         </h3>
+        {pick && (
+          <div className="asset-pick">
+            {(['live', 'save', 'loan'] as const).map((g) => (
+              <div key={g}>
+                <b className="small">{GROUP_NAME[g]}</b>
+                {a.accounts
+                  .filter((acc) => acc.group === g)
+                  .map((acc) => (
+                    <label key={acc.id} className="check small">
+                      <input type="checkbox" checked={!ex.has(acc.id)} onChange={() => toggle(acc.id)} /> {acc.name}
+                      <span className="muted"> {won(now ? (a.months[a.months.length - 1].byAccount[acc.id] ?? 0) : 0)}</span>
+                    </label>
+                  ))}
+              </div>
+            ))}
+            <p className="muted small">체크를 끈 통장은 자산 추이 숫자·그래프에서 빠져요. 통장 잔액이나 거래는 그대로예요. 가족 모두에게 같이 적용돼요.</p>
+          </div>
+        )}
         {table ? (
           <div className="tablewrap">
             <table className="list">
