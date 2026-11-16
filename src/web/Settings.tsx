@@ -309,7 +309,7 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
                 <>
                   <label>매월</label>
                   <div className="row">
-                    <input className="text" type="number" min={1} max={31} style={{ width: 80 }} value={edit.day ?? 1} onChange={(e) => setEdit({ ...edit, day: Number(e.target.value) || 1 })} />일
+                    <input className="text" inputMode="numeric" style={{ width: 80 }} value={edit.day ? String(edit.day) : ''} onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 2); setEdit({ ...edit, day: v ? Math.min(31, Number(v)) : 0 }); }} onBlur={() => !edit.day && setEdit({ ...edit, day: 1 })} />일
                   </div>
                 </>
               )}
