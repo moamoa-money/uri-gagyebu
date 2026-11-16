@@ -13,6 +13,9 @@ import {
   listTx,
   monthView,
   moveCategory,
+  orderCategories,
+  categoryUsage,
+  deleteCategory,
   runRecurring,
   saveAccount,
   saveCategory,
@@ -122,6 +125,9 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (path === '/year-target' && method === 'POST') return json(await setYearTarget(env, user, body.year, body.amount));
     if (path === '/month') return json(await monthView(env, q.get('month') ?? ''));
     if (path === '/categories' && method === 'POST') return json(await saveCategory(env, user, body as never));
+    if (path === '/categories/order' && method === 'POST') return json(await orderCategories(env, body.ids));
+    if (path === '/categories/usage') return json(await categoryUsage(env, q.get('id') ?? ''));
+    if (path === '/categories/delete' && method === 'POST') return json(await deleteCategory(env, user, String(body.id), body.moveTo ? String(body.moveTo) : null));
     if (path === '/categories/move' && method === 'POST') return json(await moveCategory(env, String(body.id), body.dir === -1 ? -1 : 1));
     if (path === '/budgets' && method === 'POST') return json(await setMonthBudget(env, user, body as never));
     if (path === '/import/notion' && method === 'GET') return json(await notionImportStatus(env));

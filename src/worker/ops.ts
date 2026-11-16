@@ -291,6 +291,71 @@ export async function moveCategory(env: Env, id: string, dir: -1 | 1) {
   return getCategories(env);
 }
 
+/** 카테고리 순서를 통째로 정한다 (끌어서 옮기기). ids = 같은 대분류 안의 새 순서 */
+export async function orderCategories(env: Env, ids: unknown) {
+  if (!Array.isArray(ids) || ids.length === 0) throw new UserError('순서가 비어 있어요.');
+  const cats = await getCategories(env);
+  const first = cats.find((x) => x.id === ids[0]);
+  if (!first) throw new UserError('없는 카테고리예요.');
+  const same = cats.filter((x) => x.grp === first.grp);
+  if (ids.length !== same.length || !same.every((c) => ids.includes(c.id))) throw new UserError('목록이 바뀌었어요. 새로고침해 주세요.');
+  await env.DB.batch(ids.map((id, k) => env.DB.prepare('UPDATE categories SET sort = ? WHERE id = ?').bind(k, String(id))));
+  return getCategories(env);
+}
+
+/** 이 카테고리를 쓰는 곳 수 (지우기 전에 보여 줌) */
+export async function categoryUsage(env: Env, id: string) {
+  const n = (sql: string) => first(env, sql, [id], (r) => Number(r.n)).then((v) => v ?? 0);
+  return {
+    tx: await n('SELECT COUNT(*) AS n FROM transactions WHERE category_id = ?'),
+    recurring: await n('SELECT COUNT(*) AS n FROM recurring WHERE category_id = ?'),
+    notes: await n('SELECT COUNT(*) AS n FROM money_notes WHERE category_id = ?'),
+    loans: await n('SELECT COUNT(*) AS n FROM loan_links WHERE principal_category = ?1 OR interest_category = ?1'),
+  };
+}
+
+const sideOf = (g: string) => (g === 'var' || g === 'fix' || g === 'spc' ? 'out' : g);
+
+/** 카테고리 지우기. 쓰는 곳이 있으면 moveTo 카테고리로 옮긴 뒤 지운다 (돈 기록은 하나도 안 사라짐).
+ *  그 카테고리만의 달별 예산·예산 메모·바뀐 기록·결산 원인은 함께 지움. 다짐은 옮김. */
+export async function deleteCategory(env: Env, user: User, id: string, moveTo: string | null) {
+  const cats = await getCategories(env);
+  const c = cats.find((x) => x.id === id);
+  if (!c) throw new UserError('없는 카테고리예요.');
+  const u = await categoryUsage(env, id);
+  const used = u.tx + u.recurring + u.notes + u.loans > 0;
+  let to: Category | undefined;
+  if (used) {
+    to = cats.find((x) => x.id === moveTo);
+    if (!to || to.id === id) throw new UserError('옮길 카테고리를 골라 주세요.');
+    if (sideOf(to.grp) !== sideOf(c.grp)) throw new UserError('지출은 지출 카테고리로, 수입은 수입 카테고리로 옮길 수 있어요.');
+  }
+  const st = (sql: string, ...b: unknown[]) => env.DB.prepare(sql).bind(...b);
+  const steps = [];
+  if (to) {
+    steps.push(
+      st('UPDATE transactions SET category_id = ? WHERE category_id = ?', to.id, id),
+      st('UPDATE recurring SET category_id = ? WHERE category_id = ?', to.id, id),
+      st('UPDATE money_notes SET category_id = ? WHERE category_id = ?', to.id, id),
+      st('UPDATE loan_links SET principal_category = ? WHERE principal_category = ?', to.id, id),
+      st('UPDATE loan_links SET interest_category = ? WHERE interest_category = ?', to.id, id),
+      st('UPDATE pledges SET category_id = ? WHERE category_id = ?', to.id, id),
+    );
+  } else {
+    steps.push(st('UPDATE pledges SET category_id = NULL WHERE category_id = ?', id));
+  }
+  steps.push(
+    st('DELETE FROM budgets WHERE category_id = ?', id),
+    st('DELETE FROM budget_notes WHERE category_id = ?', id),
+    st('DELETE FROM budget_changes WHERE category_id = ?', id),
+    st('DELETE FROM review_causes WHERE category_id = ?', id),
+    st('DELETE FROM categories WHERE id = ?', id),
+  );
+  await env.DB.batch(steps);
+  await log(env, user.name, 'category.delete', { name: c.name, movedTo: to?.name ?? null, ...u });
+  return getCategories(env);
+}
+
 export async function setMonthBudget(env: Env, user: User, input: { categoryId: string; month: string; amount: number | null; reason?: string }) {
   if (!isMonth(input.month)) throw new UserError('달이 이상해요.');
   // 바꾸기 전 값을 기록해 두면 나중에 그대로 되돌릴 수 있다

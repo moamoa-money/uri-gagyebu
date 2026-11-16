@@ -587,3 +587,11 @@ button { -webkit-appearance: none; appearance: none; }
 .asset-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 18px; background: var(--soft); border-radius: 12px; padding: 12px 16px; margin: 6px 0 12px; }
 .asset-pick > div { display: flex; flex-direction: column; gap: 4px; }
 .asset-pick p { grid-column: 1 / -1; margin: 4px 0 0; }
+
+/* 카테고리 끌어서 순서 바꾸기 · 지우기 */
+.drag-handle { display: inline-block; width: 22px; margin-right: 4px; color: #b5aca3; cursor: grab; touch-action: none; user-select: none; letter-spacing: -3px; font-weight: 700; text-align: center; }
+.drag-handle:hover { color: var(--accent); }
+tr.dragging td { background: #eef5f1; }
+tr.dragging .drag-handle { cursor: grabbing; color: var(--accent); }
+.del-box { border: 1px solid #f0c9c4; background: #fdf5f4; border-radius: 10px; padding: 10px 12px; }
+.del-box p { margin: 0 0 6px; }
