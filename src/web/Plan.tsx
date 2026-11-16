@@ -17,7 +17,7 @@ export const roughMan = (n: number) => {
   return `${m < 0 ? '-' : ''}${Math.abs(m).toLocaleString('ko-KR')}만`;
 };
 
-export function Plan({ boot, onError, toast, go, tab, initial }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; tab: 'note' | 'plan'; initial?: { year?: string; month?: string; category?: string } }) {
+export function Plan({ boot, onError, toast, go, tab, initial, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; tab: 'note' | 'plan'; initial?: { year?: string; month?: string; category?: string }; reloadBoot?: () => void }) {
   const nextYear = String(Number(boot.today.slice(0, 4)) + (Number(boot.today.slice(5, 7)) >= 11 ? 1 : 0));
   const year = initial?.year ?? nextYear;
   return (
@@ -30,7 +30,7 @@ export function Plan({ boot, onError, toast, go, tab, initial }: { boot: Boot; o
           ② 머니플랜
         </button>
       </div>
-      {tab === 'note' ? <MoneyNote boot={boot} onError={onError} toast={toast} go={go} initial={{ ...initial, year }} /> : <MoneyPlan year={year} go={go} onError={onError} toast={toast} />}
+      {tab === 'note' ? <MoneyNote boot={boot} onError={onError} toast={toast} go={go} initial={{ ...initial, year }} reloadBoot={reloadBoot} /> : <MoneyPlan year={year} go={go} onError={onError} toast={toast} />}
     </div>
   );
 }

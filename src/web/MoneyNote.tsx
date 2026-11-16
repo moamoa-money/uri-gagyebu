@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { parseAmount, won } from '../shared/rules';
 import { api } from './api';
 import type { Boot, Toast } from './data';
+import type { Category } from '../shared/types';
 import { Icon } from './Icon';
 
 interface Note {
@@ -22,7 +23,7 @@ interface Data {
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
 
-export function MoneyNote({ boot, onError, toast, go, initial, embedded = false }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; initial?: { year?: string; month?: string; category?: string }; embedded?: boolean }) {
+export function MoneyNote({ boot, onError, toast, go, initial, embedded = false, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; initial?: { year?: string; month?: string; category?: string }; embedded?: boolean; reloadBoot?: () => void }) {
   const year = initial?.year ?? boot.today.slice(0, 4);
   const setYear = (y: string) => go(`#/plan?tab=note&year=${y}`);
   const [d, setD] = useState<Data | null>(null);
@@ -30,6 +31,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false 
   // 항목별로 펼쳐 보기 (엑셀처럼 카테고리 아래에 '엄마 생신'·'명절' 줄). 기기마다 기억
   const [expand, setExpandState] = useState(() => localStorage.getItem('mn-expand') === '1');
   const setExpand = (v: boolean) => (localStorage.setItem('mn-expand', v ? '1' : '0'), setExpandState(v));
+  const [listEdit, setListEdit] = useState(false);
   const load = useCallback(() => api<Data>(`/money-notes?year=${year}`).then(setD).catch(onError), [year, onError]);
   useEffect(() => void load(), [load]);
 
@@ -70,6 +72,11 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false 
           )}
           <span className="muted">특별지출(생신·명절·재산세·정기 검진·여행…)을 달마다 미리 적어요 → 1년 총액은 미리 떼어 둘 돈, 그달 예산에도 들어가요</span>
           <span className="spacer" />
+          {reloadBoot && (
+            <button className={`btn sm ${listEdit ? 'main' : ''}`} onClick={() => setListEdit(!listEdit)}>
+              목록 고치기
+            </button>
+          )}
           <label className="check">
             <input type="checkbox" checked={expand} onChange={(e) => setExpand(e.target.checked)} /> 항목별로 펼쳐 보기
           </label>
@@ -77,6 +84,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false 
             {Number(year) - 1}년 머니노트 불러오기
           </button>
         </div>
+        {listEdit && reloadBoot && <ListEditor boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} onClose={() => setListEdit(false)} />}
         {cats.length === 0 ? (
           <div className="card">
             <p>머니노트로 예산을 잡을 카테고리가 아직 없어요. 설정 → 카테고리에서 [고치기] → '머니노트로 예산 잡기'를 켜 주세요 (명절·생일·재산세·여행처럼 해마다 오는 것).</p>
@@ -256,6 +264,68 @@ function CellEditor({ sel, notes, boot, onClose, onChanged, onError, toast }: { 
             ＋ 한 줄 더 적기
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// 머니노트 목록 고치기: 어떤 지출 카테고리를 머니노트에 넣을지 · 이름 바꾸기 · 새로 추가
+function ListEditor({ boot, onError, toast, reloadBoot, onClose }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; reloadBoot: () => void; onClose: () => void }) {
+  const [name, setName] = useState('');
+  const [names, setNames] = useState<Record<string, string>>({});
+  const spend = boot.categories.filter((c) => (c.grp === 'var' || c.grp === 'fix') && !c.hidden).sort((a, b) => Number(b.moneynote) - Number(a.moneynote) || (a.grp === b.grp ? a.sort - b.sort : a.grp === 'var' ? -1 : 1));
+  async function save(c: Partial<Category>, msg: string) {
+    try {
+      await api('/categories', c);
+      toast(msg);
+      reloadBoot();
+    } catch (e) {
+      onError(e);
+    }
+  }
+  async function add() {
+    if (!name.trim()) return;
+    await save({ grp: 'var', name: name.trim(), icon: '', budget: 0, moneynote: true }, `'${name.trim()}' 추가했어요`);
+    setName('');
+  }
+  return (
+    <div className="card">
+      <h3 className="row">
+        머니노트 목록 고치기
+        <span className="spacer" />
+        <button className="btn sm" onClick={onClose}>
+          닫기
+        </button>
+      </h3>
+      <p className="muted small">체크한 카테고리가 머니노트에 줄로 보여요. 이름은 고친 뒤 칸 밖을 누르면 저장돼요. (카테고리 지우기·순서는 설정 › 카테고리 예산)</p>
+      <table className="list">
+        <tbody>
+          {spend.map((c) => (
+            <tr key={c.id}>
+              <td style={{ width: 40 }}>
+                <input type="checkbox" checked={!!c.moneynote} onChange={(e) => save({ ...c, moneynote: e.target.checked }, e.target.checked ? `'${c.name}' 머니노트에 넣었어요` : `'${c.name}' 머니노트에서 뺐어요`)} />
+              </td>
+              <td>
+                <input
+                  className="text"
+                  value={names[c.id] ?? c.name}
+                  onChange={(e) => setNames({ ...names, [c.id]: e.target.value })}
+                  onBlur={() => {
+                    const v = (names[c.id] ?? c.name).trim();
+                    if (v && v !== c.name) save({ ...c, name: v }, '이름을 바꿨어요');
+                  }}
+                />
+              </td>
+              <td className="muted small">{c.grp === 'fix' ? '고정지출' : '변동지출'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="row" style={{ marginTop: 10 }}>
+        <input className="text" placeholder="새 항목 (예: 보리 병원)" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <button className="btn main" onClick={add}>
+          ＋ 추가
+        </button>
       </div>
     </div>
   );

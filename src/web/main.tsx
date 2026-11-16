@@ -199,7 +199,7 @@ function App() {
   if (path.startsWith('/tx'))
     body = <Transactions key={qs ?? ''} boot={boot} onError={onError} toast={toast} initial={{ account: params.get('account') ?? undefined, category: params.get('category') ?? undefined, month: params.get('month') ?? undefined, grp: params.get('grp') ?? undefined }} />;
   else if (path.startsWith('/plan') || path.startsWith('/moneynote'))
-    body = <Plan key={qs ?? ''} boot={boot} onError={onError} toast={toast} go={go} tab={path.startsWith('/moneynote') || params.get('tab') !== 'plan' ? 'note' : 'plan'} initial={{ year: params.get('year') ?? undefined, month: params.get('month') ?? undefined, category: params.get('category') ?? undefined }} />;
+    body = <Plan key={qs ?? ''} boot={boot} onError={onError} toast={toast} go={go} reloadBoot={loadBoot} tab={path.startsWith('/moneynote') || params.get('tab') !== 'plan' ? 'note' : 'plan'} initial={{ year: params.get('year') ?? undefined, month: params.get('month') ?? undefined, category: params.get('category') ?? undefined }} />;
   else if (path.startsWith('/quick')) body = <Quick boot={boot} onError={onError} toast={toast} go={go} />;
   else if (path.startsWith('/annual')) body = <Annual key={qs ?? ''} boot={boot} onError={onError} toast={toast} go={go} tab={params.get('tab') === 'plan' ? 'plan' : 'review'} initialYear={params.get('year') ?? undefined} />;
   else if (path.startsWith('/roadmap')) body = <Roadmap key={qs ?? ''} boot={boot} onError={onError} toast={toast} go={go} tab={params.get('tab') === 'long' ? 'long' : 'short'} initialYear={params.get('year') ?? undefined} />;
