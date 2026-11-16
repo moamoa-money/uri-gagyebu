@@ -254,7 +254,7 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
                 ))}
               </div>
               <label>금액</label>
-              <input className="text money" inputMode="numeric" value={won(editInv.amount ?? 0)} onChange={(e) => setEditInv({ ...editInv, amount: parseAmount(e.target.value) ?? 0 })} />
+              <input className="text money" inputMode="numeric" placeholder="0" value={editInv.amount ? won(editInv.amount) : ''} onChange={(e) => setEditInv({ ...editInv, amount: parseAmount(e.target.value) ?? 0 })} />
               <label>통장</label>
               <select className="text" value={editInv.accountId ?? ''} onChange={(e) => setEditInv({ ...editInv, accountId: e.target.value || null })}>
                 <option value="">고르지 않음</option>

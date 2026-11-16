@@ -143,7 +143,7 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                 ))}
               </div>
               <label>월 예산</label>
-              <input className="text money" inputMode="numeric" value={won(edit.budget ?? 0)} onChange={(e) => setEdit({ ...edit, budget: parseAmount(e.target.value) ?? 0 })} />
+              <input className="text money" inputMode="numeric" placeholder="0" value={edit.budget ? won(edit.budget) : ''} onChange={(e) => setEdit({ ...edit, budget: parseAmount(e.target.value) ?? 0 })} />
               {(edit.grp === 'var' || edit.grp === 'fix') && (
                 <>
                   <label />
@@ -295,7 +295,7 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
                 ))}
               </select>
               <label>금액</label>
-              <input className="text money" inputMode="numeric" value={won(edit.amount ?? 0)} onChange={(e) => setEdit({ ...edit, amount: parseAmount(e.target.value) ?? 0 })} />
+              <input className="text money" inputMode="numeric" placeholder="0" value={edit.amount ? won(edit.amount) : ''} onChange={(e) => setEdit({ ...edit, amount: parseAmount(e.target.value) ?? 0 })} />
               <label>넣는 방식</label>
               <span className="seg">
                 <button className={edit.mode !== 'batch' ? 'on' : ''} onClick={() => setEdit({ ...edit, mode: 'auto' })}>
