@@ -31,6 +31,9 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
   const setYear = (y: string) => go(`#/plan?tab=note&year=${y}`);
   const [d, setD] = useState<Data | null>(null);
   const [sel, setSel] = useState<{ categoryId: string; month: string } | null>(initial?.month && initial?.category ? { categoryId: initial.category, month: initial.month } : null);
+  // 고른 칸 (엑셀처럼): 한 번 누르면 고르기, 고른 칸을 한 번 더 누르면 팝업. 복사·붙여넣기는 고른 칸에
+  const [cur, setCur] = useState<{ cid: string; month: string; title?: string } | null>(initial?.month && initial?.category ? { cid: initial.category, month: initial.month } : null);
+  const isCur = (cid: string, month: string, title?: string) => !!cur && cur.cid === cid && cur.month === month && cur.title === title;
   // 항목별로 펼쳐 보기 (엑셀처럼 카테고리 아래에 '엄마 생신'·'명절' 줄). 기기마다 기억
   const [expand, setExpandState] = useState(() => localStorage.getItem('mn-expand') === '1');
   const setExpand = (v: boolean) => (localStorage.setItem('mn-expand', v ? '1' : '0'), setExpandState(v));
@@ -103,28 +106,66 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
     await pasteTo(t, raw);
   };
   useEffect(() => {
+    // 글자 칸(텍스트·숫자)에 커서가 있을 때만 그 칸에 맡김 — 체크칸·버튼에 남은 초점은 무시
     const typing = () => {
       const a = document.activeElement as HTMLElement | null;
-      return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable);
+      if (!a) return false;
+      if (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable) return true;
+      if (a.tagName !== 'INPUT') return false;
+      return !['checkbox', 'radio', 'button', 'submit', 'range', 'color', 'file'].includes((a as HTMLInputElement).type);
     };
+    let copyDone = false, pasteDone = false;
     const onCopy = (e: ClipboardEvent) => {
-      if (!sel || typing() || String(window.getSelection() ?? '').trim()) return;
+      if (!cur || typing() || String(window.getSelection() ?? '').trim()) return;
+      copyDone = true;
       e.preventDefault();
-      e.clipboardData?.setData('text/plain', copyFrom({ cid: sel.categoryId, month: sel.month }));
+      e.clipboardData?.setData('text/plain', copyFrom(cur));
     };
     const onPaste = (e: ClipboardEvent) => {
-      if (!sel || typing()) return;
+      if (!cur || typing()) return;
+      pasteDone = true;
       e.preventDefault();
-      void pasteTo({ cid: sel.categoryId, month: sel.month }, e.clipboardData?.getData('text') ?? '');
+      void pasteTo(cur, e.clipboardData?.getData('text') ?? '');
+    };
+    // 어떤 기기(태블릿 + 자판)는 글자 칸이 없으면 복사·붙여넣기 신호를 안 보냄 → 자판 Ctrl/⌘+C·V를 직접 받아 처리
+    const onKey = (e: KeyboardEvent) => {
+      if (!cur || typing()) return;
+      if (e.key === 'Escape' && !sel && !itemPop) return setCur(null);
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      const t = cur;
+      if (k === 'c' || k === 'ㅊ') {
+        copyDone = false;
+        setTimeout(() => {
+          if (copyDone) return;
+          const text = copyFrom(t);
+          navigator.clipboard?.writeText(text).catch(() => undefined);
+        }, 120);
+      } else if (k === 'v' || k === 'ㅍ') {
+        pasteDone = false;
+        setTimeout(async () => {
+          if (pasteDone) return;
+          let raw = '';
+          try {
+            raw = (await navigator.clipboard?.readText()) ?? '';
+          } catch {
+            raw = '';
+          }
+          if (!raw && cellClip) raw = cellClip.text;
+          await pasteTo(t, raw);
+        }, 120);
+      }
     };
     const close = () => setMenu(null);
     document.addEventListener('copy', onCopy);
     document.addEventListener('paste', onPaste);
+    document.addEventListener('keydown', onKey);
     document.addEventListener('click', close);
     window.addEventListener('scroll', close, true);
     return () => {
       document.removeEventListener('copy', onCopy);
       document.removeEventListener('paste', onPaste);
+      document.removeEventListener('keydown', onKey);
       document.removeEventListener('click', close);
       window.removeEventListener('scroll', close, true);
     };
@@ -222,10 +263,14 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
                       </td>
                       {MONTHS.map((m) => {
                         const ns = notesOf(c.id, m);
-                        const on = sel?.categoryId === c.id && sel.month === `${year}-${m}`;
+                        const on = isCur(c.id, `${year}-${m}`);
                         const ob = oldBudget(c.id, m);
                         return (
-                          <td key={m} className={`r cell-click ${on ? 'on' : ''} ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => setSel({ categoryId: c.id, month: `${year}-${m}` })} onContextMenu={(e) => (e.preventDefault(), setSel({ categoryId: c.id, month: `${year}-${m}` }), setMenu({ x: e.clientX, y: e.clientY, t: { cid: c.id, month: `${year}-${m}` } }))}>
+                          <td key={m} className={`r cell-click ${on ? 'on' : ''} ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => {
+                            (document.activeElement as HTMLElement | null)?.blur();
+                            setCur({ cid: c.id, month: `${year}-${m}` });
+                            setSel({ categoryId: c.id, month: `${year}-${m}` });
+                          }} onContextMenu={(e) => (e.preventDefault(), setCur({ cid: c.id, month: `${year}-${m}` }), setMenu({ x: e.clientX, y: e.clientY, t: { cid: c.id, month: `${year}-${m}` } }))}>
                             {ns.length > 0 && (
                               <div className="mtip">
                                 {ns.map((n) => (
@@ -253,7 +298,11 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
                                 {t || '(이름 없음)'}
                               </td>
                               {MONTHS.map((m) => (
-                                <td key={m} className={`r cell-click ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => setItemPop({ cid: c.id, title: t, focus: m })} onContextMenu={(e) => (e.preventDefault(), setMenu({ x: e.clientX, y: e.clientY, t: { cid: c.id, month: `${year}-${m}`, title: t } }))}>
+                                <td key={m} className={`r cell-click ${isCur(c.id, `${year}-${m}`, t) ? 'on' : ''} ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => {
+                                  (document.activeElement as HTMLElement | null)?.blur();
+                                  setCur({ cid: c.id, month: `${year}-${m}`, title: t });
+                                  setItemPop({ cid: c.id, title: t, focus: m });
+                                }} onContextMenu={(e) => (e.preventDefault(), setCur({ cid: c.id, month: `${year}-${m}`, title: t }), setMenu({ x: e.clientX, y: e.clientY, t: { cid: c.id, month: `${year}-${m}`, title: t } }))}>
                                   {amt(m) ? won(amt(m)) : ''}
                                 </td>
                               ))}
@@ -352,8 +401,8 @@ function CellEditor({ sel, notes, boot, onClose, onChanged, onError, toast }: { 
   }
   const total = notes.reduce((n, x) => n + x.amount, 0);
   return (
-    <div className="mn-editor">
-      <div className="card">
+    <div className="pop-bg" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="card pop">
         <h3 className="row">
           {Number(sel.month.slice(5))}월 · {cat?.name}
           <span className="spacer" />

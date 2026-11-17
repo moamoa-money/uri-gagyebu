@@ -7,7 +7,8 @@ export const won = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
 /** 금액 입력 글을 숫자로: "84,000원" → 84000. 숫자가 없으면 null */
 export function parseAmount(text: string): number | null {
-  const digits = String(text).replace(/[^\d]/g, '');
+  // '245,600.00'처럼 소수점이 붙어 오면 소수 부분은 버림 (원 단위)
+  const digits = String(text).replace(/(\d)\.\d+/g, '$1').replace(/[^\d]/g, '');
   if (!digits) return null;
   const n = Number(digits);
   return Number.isSafeInteger(n) ? n : null;
