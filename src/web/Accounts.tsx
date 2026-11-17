@@ -62,6 +62,46 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
     }
   }
 
+  // 지우기: 투자 목록은 바로, 통장은 쓴 기록이 있으면 다른 통장으로 합친 뒤
+  const [accDel, setAccDel] = useState<{ tx: number; recurring: number; investments: number; valuations: number; loan: number; startBalance: number; moveTo: string } | null>(null);
+  async function delInv() {
+    if (!editInv?.id || !confirm(`'${editInv.name}' 투자를 목록에서 지울까요? (통장 잔액·거래는 그대로예요)`)) return;
+    try {
+      setInv(await api<Investment[]>('/investments/delete', { id: editInv.id }));
+      setEditInv(null);
+      toast('지웠어요');
+    } catch (e) {
+      onError(e);
+    }
+  }
+  async function askDelAcc() {
+    if (!edit?.id) return;
+    try {
+      const u = await api<{ tx: number; recurring: number; investments: number; valuations: number; loan: number; startBalance: number }>(`/accounts/usage?id=${edit.id}`);
+      if (u.tx + u.recurring + u.investments + u.valuations + u.loan === 0 && u.startBalance === 0) {
+        if (!confirm(`'${edit.name}' 통장을 지울까요? (쓴 기록이 없어요)`)) return;
+        await doDelAcc(null);
+      } else setAccDel({ ...u, moveTo: '' });
+    } catch (e) {
+      onError(e);
+    }
+  }
+  async function doDelAcc(moveTo: string | null) {
+    if (!edit?.id) return;
+    const to = list?.find((a) => a.id === moveTo);
+    if (moveTo && !confirm(`'${edit.name}'의 거래·잔액을 '${to?.name}'(으)로 합치고 '${edit.name}'을(를) 지울까요? 되돌릴 수 없어요.`)) return;
+    try {
+      await api('/accounts/delete', { id: edit.id, moveTo });
+      toast(moveTo ? '합치고 지웠어요' : '지웠어요');
+      setAccDel(null);
+      setEdit(null);
+      load();
+      reloadBoot();
+    } catch (e) {
+      onError(e);
+    }
+  }
+
   if (!list) return <p className="muted">불러오는 중…</p>;
   const shown = list.filter((a) => !a.hidden);
   const total = shown.reduce((s, a) => s + a.balance, 0);
@@ -100,7 +140,7 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
                     <button className="btn sm" onClick={() => go(`#/tx?account=${a.id}`)}>
                       내역
                     </button>
-                    <button className="btn sm" onClick={() => setEdit({ ...a, pin: isPinned(boot, a) })}>
+                    <button className="btn sm" onClick={() => (setAccDel(null), setEdit({ ...a, pin: isPinned(boot, a) }))}>
                       고치기
                     </button>
                   </td>
@@ -159,7 +199,7 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
         {boot.featureLoan && <LoanSchedules boot={boot} onError={onError} toast={toast} />}
       </div>
 
-      <div className="side-col">
+      <div className={`side-col ${edit || editInv ? 'as-modal' : ''}`} onClick={(e) => e.target === e.currentTarget && (setEdit(null), setEditInv(null), setAccDel(null))}>
         {edit && (
           <div className="card sticky">
             <h3>{edit.id ? '통장 고치기' : '통장 추가'}</h3>
@@ -219,13 +259,47 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
                   </label>
                 </>
               )}
-              <label />
-              <div className="row">
+              {edit.id && accDel && (
+                <>
+                  <label />
+                  <div className="del-box">
+                    <p>
+                      <b>{edit.name}</b>에 있는 것: {[accDel.tx && `거래 ${accDel.tx}건`, accDel.recurring && `고정지출 ${accDel.recurring}개`, accDel.investments && `투자 ${accDel.investments}개`, accDel.valuations && `평가금액 ${accDel.valuations}달`, accDel.loan && '상환표', accDel.startBalance && `시작 잔액 ${signed(accDel.startBalance)}원`].filter(Boolean).join(', ')}
+                    </p>
+                    <p className="muted small">합칠 통장을 고르면 거래·고정지출·투자는 그 통장으로 옮기고, 잔액도 더해져요(두 통장 합계 그대로). 상환표는 합칠 수 없어 지워져요. 기록을 그대로 두고 싶으면 지우지 말고 위 '숨기기'를 쓰세요.</p>
+                    <select className="text" value={accDel.moveTo} onChange={(e) => setAccDel({ ...accDel, moveTo: e.target.value })}>
+                      <option value="">합칠 통장 고르기</option>
+                      {list
+                        .filter((a) => a.id !== edit.id)
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.kind}){a.hidden ? ' · 숨김' : ''}
+                          </option>
+                        ))}
+                    </select>
+                    <div className="row" style={{ marginTop: 8 }}>
+                      <button className="btn sm danger" disabled={!accDel.moveTo} onClick={() => doDelAcc(accDel.moveTo)}>
+                        합치고 지우기
+                      </button>
+                      <button className="btn sm" onClick={() => setAccDel(null)}>
+                        그만두기
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+              <div className="row pop-actions">
+                {edit.id && !accDel && (
+                  <button className="btn sm danger" onClick={askDelAcc}>
+                    이 통장 지우기
+                  </button>
+                )}
+                <span className="spacer" />
+                <button className="btn" onClick={() => (setEdit(null), setAccDel(null))}>
+                  닫기
+                </button>
                 <button className="btn main" onClick={saveAcc}>
                   저장
-                </button>
-                <button className="btn" onClick={() => setEdit(null)}>
-                  닫기
                 </button>
               </div>
             </div>
@@ -270,13 +344,18 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
               <DateInput value={editInv.maturity ?? ''} onChange={(v) => setEditInv({ ...editInv, maturity: v || null })} />
               <label>메모</label>
               <input className="text" value={editInv.memo ?? ''} onChange={(e) => setEditInv({ ...editInv, memo: e.target.value })} />
-              <label />
-              <div className="row">
-                <button className="btn main" onClick={saveInv}>
-                  저장
-                </button>
+              <div className="row pop-actions">
+                {editInv.id && (
+                  <button className="btn sm danger" onClick={delInv}>
+                    이 투자 지우기
+                  </button>
+                )}
+                <span className="spacer" />
                 <button className="btn" onClick={() => setEditInv(null)}>
                   닫기
+                </button>
+                <button className="btn main" onClick={saveInv}>
+                  저장
                 </button>
               </div>
             </div>

@@ -20,6 +20,9 @@ import {
   saveAccount,
   saveCategory,
   saveInvestment,
+  deleteInvestment,
+  accountUsage,
+  deleteAccount,
   saveRecurring,
   saveTx,
   setMonthBudget,
@@ -146,6 +149,9 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (path === '/recurring' && method === 'POST') return json(await saveRecurring(env, user, body as never));
     if ((m = path.match(/^\/recurring\/([\w-]+)\/stop$/)) && method === 'POST') return json(await deleteRecurring(env, user, m[1]));
     if (path === '/investments' && method === 'GET') return json(await listInvestments(env));
+    if (path === '/investments/delete' && method === 'POST') return json(await deleteInvestment(env, user, String(body.id)));
+    if (path === '/accounts/usage') return json(await accountUsage(env, q.get('id') ?? ''));
+    if (path === '/accounts/delete' && method === 'POST') return json(await deleteAccount(env, user, String(body.id), body.moveTo ? String(body.moveTo) : null));
     if (path === '/investments' && method === 'POST') return json(await saveInvestment(env, user, body));
     if (path === '/users' && method === 'POST') return json(await addUser(env, user, body as never));
     if (path === '/password' && method === 'POST') return json(await changePassword(env, user, body as never));

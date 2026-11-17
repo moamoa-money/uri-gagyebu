@@ -38,7 +38,8 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
   useEffect(() => void load(), [load]);
 
   // 머니노트 카테고리 + (표시는 안 했지만) 이 해에 적어 둔 게 있는 카테고리는 '참고'로
-  const cats = boot.categories.filter((c) => (c.moneynote && !c.hidden) || d?.notes.some((n) => n.categoryId === c.id)).sort((a, b) => Number(b.moneynote) - Number(a.moneynote) || a.sort - b.sort);
+  // 머니노트 = 지출(변동·고정) 카테고리만. 대분류를 수입·저축 등으로 옮긴 카테고리는 표시가 남아 있어도 빼기
+  const cats = boot.categories.filter((c) => (c.moneynote && !c.hidden && (c.grp === 'var' || c.grp === 'fix')) || d?.notes.some((n) => n.categoryId === c.id)).sort((a, b) => Number(b.moneynote) - Number(a.moneynote) || a.sort - b.sort);
   if (!d) return <p className="muted">불러오는 중…</p>;
   const notesOf = (cid: string, m: string) => d.notes.filter((n) => n.categoryId === cid && n.month === `${year}-${m}`);
   const oldBudget = (cid: string, m: string) => d.budgets.find((b) => b.categoryId === cid && b.month === `${year}-${m}`)?.amount ?? 0;
@@ -84,7 +85,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
               ▶
             </button>
           )}
-          <span className="muted">특별지출(생신·명절·재산세·정기 검진·여행…)을 달마다 미리 적어요 → 1년 총액은 미리 떼어 둘 돈, 그달 예산에도 들어가요</span>
+          <span className="muted">매달은 아니지만 나갈 걸 아는 돈(생신·명절·재산세·정기 검진·몇 달마다 사는 것…)을 그달에 미리 적어요 → 1년 총액은 미리 떼어 둘 돈, 그달 예산에도 들어가요. 매달 같은 돈(관리비·용돈)은 설정 › 카테고리 예산의 월 예산에 적어요.</span>
           <span className="spacer" />
           {reloadBoot && (
             <button className={`btn sm ${listEdit ? 'main' : ''}`} onClick={() => setListEdit(!listEdit)}>
@@ -391,7 +392,24 @@ function ItemPopup({ year, cat, title, focus, taken, notes, onClose, onDelete, o
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
   }, [onClose]);
+  const [every, setEvery] = useState(1); // 몇 달마다 채우기
   const total = MONTHS.reduce((a, m) => a + (parseAmount(vals[m]) ?? 0), 0);
+  // 엑셀에서 한 줄(여러 칸) 복사해 붙여넣으면 그 달부터 차례로 채우기
+  function pasteMany(m: string, e: React.ClipboardEvent<HTMLInputElement>) {
+    const parts = e.clipboardData.getData('text').trim().split(/[\t\n\r]+|\s{2,}/).filter(Boolean);
+    if (parts.length < 2) return; // 하나면 보통 붙여넣기
+    e.preventDefault();
+    const next = { ...vals };
+    let k = MONTHS.indexOf(m);
+    for (const p of parts) {
+      if (k >= 12) break;
+      const mm = MONTHS[k++];
+      if (multi(mm)) continue;
+      const n = parseAmount(p.replace(/원/g, ''));
+      next[mm] = n ? won(n) : '';
+    }
+    setVals(next);
+  }
   function save() {
     const t = name.trim();
     if (!t) return alert('이름을 적어 주세요.');
@@ -425,9 +443,34 @@ function ItemPopup({ year, cat, title, focus, taken, notes, onClose, onDelete, o
                   setVals({ ...vals, [m]: n === null ? '' : won(n) });
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && save()}
+                onPaste={(e) => pasteMany(m, e)}
               />
             </label>
           ))}
+        </div>
+        <div className="row" style={{ gap: 6, marginBottom: 6 }}>
+          <span className="muted small">처음 적은 달부터</span>
+          <select className="text sm" style={{ width: 'auto' }} value={every} onChange={(e) => setEvery(Number(e.target.value))}>
+            {[1, 2, 3, 4, 6].map((n) => (
+              <option key={n} value={n}>
+                {n === 1 ? '매달' : `${n}달마다`}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn sm"
+            title="처음 금액을 적은 달부터 고른 간격으로 같은 금액을 채워요 (예: 2월 6만 + 3달마다 → 2·5·8·11월)"
+            onClick={() => {
+              const k = MONTHS.findIndex((m) => parseAmount(vals[m]));
+              if (k < 0) return alert('먼저 시작할 달에 금액을 적어 주세요.');
+              const v = vals[MONTHS[k]];
+              const next = { ...vals };
+              for (let i = k; i < 12; i += every) if (!multi(MONTHS[i])) next[MONTHS[i]] = v;
+              setVals(next);
+            }}
+          >
+            채우기
+          </button>
         </div>
         <p className="muted small">1년 합계 <b>{won(total)}원</b> · 금액을 비우면 그달은 지워져요. 금액이 없어도 줄은 남아요.</p>
         <div className="row">

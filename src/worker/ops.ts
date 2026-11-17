@@ -267,11 +267,13 @@ export async function saveCategory(env: Env, user: User, input: Partial<Category
   const grp = input.grp as Group;
   if (!GROUPS.some((g) => g.key === grp)) throw new UserError('대분류를 골라 주세요.');
   const budget = input.budget === undefined ? 0 : int(input.budget, '예산');
+  // 머니노트는 지출(변동·고정)만 — 대분류를 수입·저축 등으로 옮기면 머니노트 표시도 끔
+  const mn = input.moneynote && (grp === 'var' || grp === 'fix') ? 1 : 0;
   if (input.id) {
-    await run(env, 'UPDATE categories SET name = ?, grp = ?, icon = ?, emoji = ?, moneynote = ?, moneynote_add = ?, budget = ?, hidden = ? WHERE id = ?', [name, grp, text(input.icon, 40), text(input.icon, 40), input.moneynote ? 1 : 0, input.moneynote && input.moneynoteAdd ? 1 : 0, budget, input.hidden ? 1 : 0, input.id]);
+    await run(env, 'UPDATE categories SET name = ?, grp = ?, icon = ?, emoji = ?, moneynote = ?, moneynote_add = ?, budget = ?, hidden = ? WHERE id = ?', [name, grp, text(input.icon, 40), text(input.icon, 40), mn, mn && input.moneynoteAdd ? 1 : 0, budget, input.hidden ? 1 : 0, input.id]);
   } else {
     const max = (await first(env, 'SELECT MAX(sort) AS m FROM categories WHERE grp = ?', [grp], (r) => Number(r.m ?? 0))) ?? 0;
-    await run(env, 'INSERT INTO categories (id, name, grp, icon, emoji, moneynote, budget, sort, hidden, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)', [newId(), name, grp, text(input.icon, 40), text(input.icon, 40), input.moneynote ? 1 : 0, budget, max + 1, Date.now()]);
+    await run(env, 'INSERT INTO categories (id, name, grp, icon, emoji, moneynote, budget, sort, hidden, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)', [newId(), name, grp, text(input.icon, 40), text(input.icon, 40), mn, budget, max + 1, Date.now()]);
   }
   await log(env, user.name, 'category.save', { name, grp, budget, hidden: input.hidden });
   return getCategories(env);
@@ -453,6 +455,68 @@ export async function deleteRecurring(env: Env, user: User, id: string) {
 // ---------- 투자 ----------
 
 export const listInvestments = (env: Env) => all(env, 'SELECT * FROM investments ORDER BY status, maturity', [], toInvestment);
+
+/** 투자 목록 한 줄 지우기 (통장·거래는 그대로) */
+export async function deleteInvestment(env: Env, user: User, id: string) {
+  const name = await first(env, 'SELECT name FROM investments WHERE id = ?', [id], (r) => String(r.name));
+  if (!name) throw new UserError('이미 지워졌어요.');
+  await run(env, 'DELETE FROM investments WHERE id = ?', [id]);
+  await log(env, user.name, 'investment.delete', { name });
+  return listInvestments(env);
+}
+
+/** 이 통장을 쓰는 곳 수 (지우기 전에 보여 줌) */
+export async function accountUsage(env: Env, id: string) {
+  const n = (sql: string) => first(env, sql, [id], (r) => Number(r.n)).then((v) => v ?? 0);
+  return {
+    tx: await n('SELECT COUNT(*) AS n FROM transactions WHERE from_account = ?1 OR to_account = ?1'),
+    recurring: await n('SELECT COUNT(*) AS n FROM recurring WHERE from_account = ?1 OR to_account = ?1 OR loan_account = ?1'),
+    investments: await n('SELECT COUNT(*) AS n FROM investments WHERE account_id = ?'),
+    valuations: await n('SELECT COUNT(*) AS n FROM account_valuations WHERE account_id = ?'),
+    loan: await n('SELECT (SELECT COUNT(*) FROM loan_schedule WHERE account_id = ?1) + (SELECT COUNT(*) FROM loan_links WHERE account_id = ?1) AS n'),
+    startBalance: (await first(env, 'SELECT start_balance FROM accounts WHERE id = ?', [id], (r) => Number(r.start_balance))) ?? 0,
+  };
+}
+
+/** 통장 지우기. 쓰는 곳이 있으면 moveTo 통장으로 합친 뒤 지운다:
+ *  거래·고정지출·투자 목록은 옮기고, 시작 잔액은 더하고, 평가금액은 같은 달끼리 더함 → 두 통장 잔액 합계가 그대로 유지됨.
+ *  상환표(대출)는 합칠 수 없어 지움. */
+export async function deleteAccount(env: Env, user: User, id: string, moveTo: string | null) {
+  const name = await first(env, 'SELECT name FROM accounts WHERE id = ?', [id], (r) => String(r.name));
+  if (!name) throw new UserError('없는 통장이에요.');
+  const u = await accountUsage(env, id);
+  const used = u.tx + u.recurring + u.investments + u.valuations + u.loan > 0 || u.startBalance !== 0;
+  let toName: string | null = null;
+  if (used) {
+    if (!moveTo || moveTo === id) throw new UserError('합칠 통장을 골라 주세요.');
+    toName = await first(env, 'SELECT name FROM accounts WHERE id = ?', [moveTo], (r) => String(r.name));
+    if (!toName) throw new UserError('합칠 통장을 골라 주세요.');
+  }
+  const st = (sql: string, ...b: unknown[]) => env.DB.prepare(sql).bind(...b);
+  const steps = [];
+  if (moveTo && toName) {
+    steps.push(
+      st('UPDATE accounts SET start_balance = start_balance + ? WHERE id = ?', u.startBalance, moveTo),
+      st('UPDATE transactions SET from_account = ? WHERE from_account = ?', moveTo, id),
+      st('UPDATE transactions SET to_account = ? WHERE to_account = ?', moveTo, id),
+      st('UPDATE recurring SET from_account = ? WHERE from_account = ?', moveTo, id),
+      st('UPDATE recurring SET to_account = ? WHERE to_account = ?', moveTo, id),
+      st('UPDATE recurring SET loan_account = NULL, loan_part = NULL WHERE loan_account = ?', id),
+      st('UPDATE investments SET account_id = ? WHERE account_id = ?', moveTo, id),
+      st('UPDATE account_valuations SET amount = amount + (SELECT a.amount FROM account_valuations a WHERE a.account_id = ?1 AND a.month = account_valuations.month), updated_at = ?3 WHERE account_id = ?2 AND month IN (SELECT month FROM account_valuations WHERE account_id = ?1)', id, moveTo, Date.now()),
+      st('UPDATE OR IGNORE account_valuations SET account_id = ? WHERE account_id = ?', moveTo, id),
+    );
+  }
+  steps.push(
+    st('DELETE FROM account_valuations WHERE account_id = ?', id),
+    st('DELETE FROM loan_schedule WHERE account_id = ?', id),
+    st('DELETE FROM loan_links WHERE account_id = ?', id),
+    st('DELETE FROM accounts WHERE id = ?', id),
+  );
+  await env.DB.batch(steps);
+  await log(env, user.name, 'account.delete', { name, mergedInto: toName, ...u });
+  return { ok: true };
+}
 
 export async function saveInvestment(env: Env, user: User, input: Record<string, unknown>) {
   const name = text(input.name, 60);
