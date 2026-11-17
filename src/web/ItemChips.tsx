@@ -4,7 +4,9 @@ import { api } from './api';
 import type { Boot } from './data';
 
 interface NotesData { notes: { categoryId: string; month: string; title: string }[]; items?: { categoryId: string; title: string }[] }
-const cache = new Map<string, Promise<NotesData>>(); // 해마다 한 번만 불러옴
+// 같은 해 머니노트를 잠깐(10초)만 기억 — 머니노트를 고친 뒤 거래 화면으로 오면 바로 새 항목이 보이게
+const cache = new Map<string, { at: number; p: Promise<NotesData> }>();
+const FRESH_MS = 10_000;
 
 export function useItemSuggest(boot: Boot, categoryId: string | null, date: string): string[] {
   const cat = boot.categories.find((c) => c.id === categoryId);
@@ -12,11 +14,12 @@ export function useItemSuggest(boot: Boot, categoryId: string | null, date: stri
   const [data, setData] = useState<NotesData | null>(null);
   useEffect(() => {
     if (!cat?.moneynote || !/^\d{4}$/.test(year)) return;
-    if (!cache.has(year)) cache.set(year, api<NotesData>(`/money-notes?year=${year}`).catch(() => ({ notes: [] })));
+    const hit = cache.get(year);
+    if (!hit || Date.now() - hit.at > FRESH_MS) cache.set(year, { at: Date.now(), p: api<NotesData>(`/money-notes?year=${year}`).catch(() => ({ notes: [] })) });
     let on = true;
-    cache.get(year)!.then((d) => on && setData(d));
+    cache.get(year)!.p.then((d) => on && setData(d));
     return () => void (on = false);
-  }, [cat?.moneynote, year]);
+  }, [cat?.moneynote, year, categoryId]);
   if (!cat?.moneynote || !data) return [];
   const month = date.slice(0, 7);
   const mine = data.notes.filter((n) => n.categoryId === categoryId);
