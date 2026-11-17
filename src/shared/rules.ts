@@ -391,5 +391,5 @@ export function valuedAt(bookAt: (month: string) => number, vals: { month: strin
 }
 
 /** '남은 돈'(수입 − 지출 − 저축·투자)을 알기 쉬운 이름으로: 0 이상이면 남은 돈, 마이너스면 통장에서 더 꺼내 쓴 돈 (금액은 부호 없이) */
-export const leftLabel = (v: number) => (v >= 0 ? '쓰고 모으고 남은 돈' : '통장에서 더 꺼내 쓴 돈');
+export const leftLabel = (v: number) => (v >= 0 ? '남은 돈' : '모자란 돈');
 export const LEFT_HINT = '수입 − 지출 − 저축·투자';
