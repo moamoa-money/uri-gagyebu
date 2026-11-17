@@ -63,8 +63,16 @@ function ShortPage({ year, boot, onError, toast, go }: { year: string; boot: Boo
         <button className="btn sm" onClick={() => go(`#/roadmap?tab=short&year=${Number(year) + 1}`)}>
           ▶
         </button>
-        <span className="muted small">계획 = 월말 결산의 저축·투자 예산 · 실제 = 거래에서 자동 · 단위 만 원</span>
+        <span className="muted small">단위 만 원</span>
       </div>
+      <details className="help" style={{ marginTop: -8, marginBottom: 12 }}>
+        <summary>단기로드맵이란?</summary>
+        <ul>
+          <li>올해 저축·투자 계획을 달마다 실제와 비교해 보는 곳이에요.</li>
+          <li>계획: 월말 결산에서 정한 저축·투자 예산</li>
+          <li>실제: 거래에 적은 저축·투자에서 자동으로 계산</li>
+        </ul>
+      </details>
       <TargetBar d={d} year={year} onError={onError} reload={load} />
       <IncludePicker d={d} year={year} onError={onError} setD={setD} />
       <div className="card row">

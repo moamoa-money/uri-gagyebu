@@ -638,3 +638,12 @@ input.mn-cell-in { width: 92px; text-align: right; padding: 3px 6px; font-size: 
 /* 팝업 아래 버튼 줄: [지우기] ……… [닫기] [저장] */
 .vform .pop-actions { grid-column: 1 / -1; margin-top: 10px; }
 .pop-actions { gap: 8px; }
+
+/* 펼쳐 보는 도움말 */
+details.help { margin-top: 8px; font-size: 13px; color: var(--muted, #8a8f8b); }
+details.help summary { cursor: pointer; width: fit-content; user-select: none; }
+details.help ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.6; }
+
+/* 머니노트 제목: ◀ 2028년 머니노트 ▶ 한 줄, 가운데 맞춤 */
+.head.mn-head { align-items: center; }
+.head.mn-head h1, .head.mn-head h2 { white-space: nowrap; }

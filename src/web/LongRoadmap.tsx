@@ -59,8 +59,15 @@ export function LongRoadmap({ year, boot, onError, toast, go }: { year: string; 
         <button className="btn sm" onClick={() => go(`#/roadmap?tab=long&year=${Number(year) + 1}`)}>
           ▶
         </button>
-        <span className="muted small">해마다 새로 만들어요 (2026로드맵 → 2027로드맵) · 단위 만 원</span>
+        <span className="muted small">단위 만 원</span>
       </div>
+      <details className="help" style={{ marginTop: -8, marginBottom: 12 }}>
+        <summary>로드맵이란?</summary>
+        <ul>
+          <li>앞으로 몇십 년 동안의 자산 계획을 세우고 해마다 실제와 비교하는 곳이에요.</li>
+          <li>해마다 새로 만들어요 (2026 로드맵 → 2027 로드맵).</li>
+        </ul>
+      </details>
       {d.plan ? <LongTable d={d} setD={setD} onError={onError} toast={toast} boot={boot} /> : d.carry ? <Carry d={d} setD={setD} onError={onError} toast={toast} /> : <Setup year={year} boot={boot} setD={setD} onError={onError} />}
     </div>
   );

@@ -130,7 +130,14 @@ export function MoneyPlan({ year, go, onError, toast, embedded = false }: { year
             </tbody>
           </table>
         </div>
-        <p className="muted small">수입은 최근 석 달 실제 평균, 고정·변동은 카테고리 예산에서 자동으로 채워져요(머니노트로 잡힌 특별지출은 빼고). 칸을 눌러 고칠 수 있고, 고친 칸은 초록색 — 지우면 다시 자동 값. 특별지출은 머니노트 탭에서 적어요.</p>
+        <details className="help">
+          <summary>머니플랜이란?</summary>
+          <ul>
+            <li>목표 저축 = 수입 − 고정 − 변동 − 특별지출</li>
+            <li>수입은 최근 석 달 평균, 고정·변동은 카테고리 예산, 특별지출은 머니노트에서 자동으로 채워져요.</li>
+            <li>칸을 누르면 고칠 수 있어요. 고친 칸은 초록색, 지우면 자동 값으로 돌아가요.</li>
+          </ul>
+        </details>
       </div>
     </>
   );
