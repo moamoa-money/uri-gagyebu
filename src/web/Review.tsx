@@ -10,6 +10,7 @@ import { GROUP_ICON, Icon } from './Icon';
 import { LineChart } from './LineChart';
 import { NoSpendMini, NoSpendStat } from './NoSpend';
 import { NewBadge } from './NewBadge';
+import { useStickers } from './Look';
 import { toBlob, toPng } from 'html-to-image';
 import { CafeOptions, ShortImage, uptoOf, useCafePrefs, type ShortData } from './Roadmap';
 import { LongImageFor, type LongData } from './LongRoadmap';
@@ -780,7 +781,7 @@ export function AssetTrend({ month, boot, onError }: { month: string; boot: Boot
             </table>
           </div>
         ) : (
-          <LineChart points={rows.map((r) => ({ label: lbl(r.month), value: r.assets }))} color="#1f7f55" valueText={(n) => `${won(n)}원`} />
+          <LineChart points={rows.map((r) => ({ label: lbl(r.month), value: r.assets }))} color="var(--accent)" valueText={(n) => `${won(n)}원`} />
         )}
       </div>
       {!table && (
@@ -984,6 +985,15 @@ function NextBudgetNotes({ grp, d, onError, setD }: { grp: 'var' | 'fix'; d: Rev
 
 // ---------- 카페 이미지: 가계부 결산 한 장 (변동·고정·수입·저축 기준표 + 피드백) ----------
 function CafeImage({ d, boot, filled, toast, onError }: { d: ReviewData; boot: Boot; filled: (k: string) => boolean; toast: Toast; onError: (e: unknown) => void }) {
+  // 스티커: 보관함에서 이 달에 쓸 것 고르기 (달마다 기억, 처음엔 지난번 고른 것)
+  const stickers = useStickers(boot.stickerVer);
+  const [stickerId, setStickerIdState] = useState(() => localStorage.getItem(`gb_cafe_sticker:${d.month}`) ?? localStorage.getItem('gb_cafe_sticker_last') ?? '');
+  const setStickerId = (id: string) => {
+    localStorage.setItem(`gb_cafe_sticker:${d.month}`, id);
+    localStorage.setItem('gb_cafe_sticker_last', id);
+    setStickerIdState(id);
+  };
+  const sticker = stickers.find((x) => x.id === stickerId)?.data ?? null;
   const [withNs, setWithNsState] = useState(() => localStorage.getItem('gb_cafe_nospend') === '1'); // 무지출 달력 넣기 (고른 것 기억)
   const setWithNs = (v: boolean) => (localStorage.setItem('gb_cafe_nospend', v ? '1' : '0'), setWithNsState(v));
   const ref = useRef<HTMLDivElement>(null);
@@ -1174,6 +1184,19 @@ function CafeImage({ d, boot, filled, toast, onError }: { d: ReviewData; boot: B
           )}
         </div>
         <CafeOptions p={prefs} toast={toast} money={false} />
+        {stickers.length > 0 && (
+          <div className="sticker-pick">
+            <b className="small">스티커</b>
+            {stickers.map((st) => (
+              <button key={st.id} className={stickerId === st.id ? 'on' : ''} onClick={() => setStickerId(st.id)}>
+                <img src={st.data} alt="" />
+              </button>
+            ))}
+            <button className={`none ${!sticker ? 'on' : ''}`} onClick={() => setStickerId('')}>
+              없음
+            </button>
+          </div>
+        )}
         {boot.nospendCal !== false && (
           <label className="check small" style={{ marginTop: 6 }}>
             <input type="checkbox" checked={withNs} onChange={(e) => setWithNs(e.target.checked)} /> 무지출 달력 넣기 <NewBadge id="cafe-nospend" />
@@ -1185,7 +1208,10 @@ function CafeImage({ d, boot, filled, toast, onError }: { d: ReviewData; boot: B
         <div className={`cf ${prefs.layout}`} ref={ref}>
           <div className="cf-title">
             <b>{d.month.slice(0, 4)}년 {m}월 가계부 결산</b>
-            <span>{boot.household}</span>
+            <span>
+              {boot.household}
+              {sticker && <img className="cf-sticker" src={sticker} alt="" />}
+            </span>
           </div>
           <div className="cf-tiles">
             {(
@@ -1492,7 +1518,7 @@ function AllCafeImages({ d, boot, filled, toast, onError, month }: { d: ReviewDa
   }
   return (
     <div>
-      <div className="card row" style={{ background: '#f3f8f5' }}>
+      <div className="card row" style={{ background: 'var(--tint)' }}>
         <b>카페에 올릴 세 장</b>
         <span className="muted small">결산 · 단기로드맵 · 중장기로드맵 — 아래 미리보기 그대로 저장돼요 (각 이미지의 넓게/좁게·금액 가리기도 그대로)</span>
         <span className="spacer" />

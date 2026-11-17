@@ -95,7 +95,7 @@ function ReviewTab({ d, boot, onError, toast, reload, setD }: { d: AnnualData; b
       <div className="card">
         <LineChart
           points={d.months.map((m) => ({ label: `${Number(m.month.slice(5))}월`, value: m.saveRate === null ? 0 : Math.round(m.saveRate * 1000) / 10 }))}
-          color="#3f6e5a"
+          color="var(--accent)"
           height={220}
           valueText={(n) => `${n}%`}
           axisText={(n) => `${n}%`}
@@ -438,7 +438,7 @@ function ReviewImage({ d, household, toast, onError }: { d: AnnualData; househol
           </div>
           <div className="an-sec">달별 저축률</div>
           <div className="an-chart">
-            <LineChart points={d.months.map((m) => ({ label: `${Number(m.month.slice(5))}월`, value: m.saveRate === null ? 0 : Math.round(m.saveRate * 1000) / 10 }))} color="#3f6e5a" height={190} valueText={(n) => `${n}%`} axisText={(n) => `${n}%`} endText={(n) => `${n}%`} />
+            <LineChart points={d.months.map((m) => ({ label: `${Number(m.month.slice(5))}월`, value: m.saveRate === null ? 0 : Math.round(m.saveRate * 1000) / 10 }))} color="var(--accent)" height={190} valueText={(n) => `${n}%`} axisText={(n) => `${n}%`} endText={(n) => `${n}%`} />
           </div>
           <div className="an-sec">해마다 비교 <span>단위 만 원</span></div>
           <table className="cf-table an-t">

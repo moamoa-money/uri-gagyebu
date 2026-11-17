@@ -20,6 +20,13 @@ import {
   saveAccount,
   saveCategory,
   nospendView,
+  setTheme,
+  pickHomeImage,
+  listStickers,
+  addSticker,
+  deleteSticker,
+  setLookImage,
+  getLookImage,
   setNospendCal,
   saveInvestment,
   deleteInvestment,
@@ -137,6 +144,13 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (path === '/save-basis' && method === 'POST') return json(await setSaveBasis(env, user, body.basis, body.year));
     if (path === '/year-target' && method === 'POST') return json(await setYearTarget(env, user, body.year, body.amount));
     if (path === '/month') return json(await monthView(env, q.get('month') ?? ''));
+    if (path === '/look/stickers') return json(method === 'POST' ? await addSticker(env, user, body.data) : await listStickers(env));
+    const sd = path.match(/^\/look\/stickers\/([\w-]+)\/delete$/);
+    if (sd && method === 'POST') return json(await deleteSticker(env, user, sd[1]));
+    if (path === '/look/home' && method === 'POST') return json(await pickHomeImage(env, user, body.id));
+    if (path === '/look/theme' && method === 'POST') return json(await setTheme(env, user, body.name));
+    const lk = path.match(/^\/look\/(cover|sticker)$/);
+    if (lk) return json(method === 'POST' ? await setLookImage(env, user, lk[1], body.data) : await getLookImage(env, lk[1]));
     if (path === '/nospend') return json(await nospendView(env, q.get('month') ?? ''));
     if (path === '/prefs/nospend' && method === 'POST') return json(await setNospendCal(env, user, body.on));
     if (path === '/categories' && method === 'POST') return json(await saveCategory(env, user, body as never));

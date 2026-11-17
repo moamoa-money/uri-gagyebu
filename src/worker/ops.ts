@@ -102,6 +102,66 @@ export async function nospendView(env: Env, month: string) {
   return { month, today: t, spent, passedDays: passed(month), prevNoSpend: passed(prev) - prevSpent.length };
 }
 
+// ---------- 꾸미기 (가족 공용) ----------
+const THEMES = ['green', 'pink', 'sky', 'violet', 'brown', 'charcoal'];
+export async function setTheme(env: Env, user: User, name: unknown) {
+  const t = String(name);
+  if (!THEMES.includes(t)) throw new UserError('없는 색이에요.');
+  await setSetting(env, 'look_theme', t);
+  await log(env, user.name, 'look.theme', { t });
+  return { ok: true };
+}
+/** 표지(cover)·스티커(sticker) 그림: 화면에서 작게 줄인 data URL을 그대로 저장 (900KB까지). 빈 값이면 지움 */
+export async function setLookImage(env: Env, user: User, kind: string, data: unknown) {
+  if (kind !== 'cover' && kind !== 'sticker') throw new UserError('잘못된 그림 종류예요.');
+  const v = data ? String(data) : '';
+  if (v && !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v)) throw new UserError('그림 파일이 아니에요.');
+  if (v.length > 900_000) throw new UserError('그림이 너무 커요. 더 작은 그림을 골라 주세요.');
+  if (v) {
+    await setSetting(env, `look_${kind}`, v);
+    await setSetting(env, `look_${kind}_ver`, String(Date.now()));
+  } else {
+    await run(env, 'DELETE FROM settings WHERE key IN (?, ?)', [`look_${kind}`, `look_${kind}_ver`]);
+  }
+  await log(env, user.name, 'look.image', { kind, size: v.length });
+  return { ok: true };
+}
+/** 스티커 보관함 (최대 6장) */
+export async function listStickers(env: Env) {
+  return all(env, "SELECT id, data FROM look_images WHERE kind = 'sticker' ORDER BY sort, created_at", [], (r) => ({ id: String(r.id), data: String(r.data) }));
+}
+export async function addSticker(env: Env, user: User, data: unknown) {
+  const v = String(data ?? '');
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v)) throw new UserError('그림 파일이 아니에요.');
+  if (v.length > 600_000) throw new UserError('그림이 너무 커요. 더 작은 그림을 골라 주세요.');
+  const n = (await first(env, "SELECT COUNT(*) AS n FROM look_images WHERE kind = 'sticker'", [], (r) => Number(r.n))) ?? 0;
+  if (n >= 6) throw new UserError('스티커는 6장까지예요. 안 쓰는 것을 지우고 넣어 주세요.');
+  const now = Date.now();
+  await run(env, "INSERT INTO look_images (id, kind, data, sort, created_by, created_at) VALUES (?, 'sticker', ?, ?, ?, ?)", [newId(), v, n, user.name, now]);
+  await log(env, user.name, 'look.sticker.add', { size: v.length });
+  return listStickers(env);
+}
+export async function deleteSticker(env: Env, user: User, id: string) {
+  await run(env, "DELETE FROM look_images WHERE id = ? AND kind = 'sticker'", [id]);
+  await log(env, user.name, 'look.sticker.delete', { id });
+  return listStickers(env);
+}
+
+/** 홈 그림을 보관함에서 고르기: 고른 그림을 홈 그림 칸(look_cover)에 그대로 옮겨 씀 (id 빈 값이면 홈 그림 지움) */
+export async function pickHomeImage(env: Env, user: User, id: unknown) {
+  const k = String(id ?? '');
+  if (!k) return setLookImage(env, user, 'cover', '');
+  const data = await first(env, "SELECT data FROM look_images WHERE id = ? AND kind = 'sticker'", [k], (r) => String(r.data));
+  if (!data) throw new UserError('없는 그림이에요.');
+  await setSetting(env, 'look_home_id', k);
+  return setLookImage(env, user, 'cover', data);
+}
+
+export async function getLookImage(env: Env, kind: string) {
+  if (kind !== 'cover' && kind !== 'sticker') throw new UserError('잘못된 그림 종류예요.');
+  return { data: await getSetting(env, `look_${kind}`) };
+}
+
 export async function bootstrap(env: Env, user: User) {
   await runRecurring(env);
   const [categories, accounts, recurring, users, household] = await Promise.all([
@@ -115,7 +175,12 @@ export async function bootstrap(env: Env, user: User) {
   const featureLoan = (await getSetting(env, 'feature_loan')) === '1';
   // 무지출 달력: 사람마다 켜고 끔 (기본 켜짐)
   const nospendCal = (await first(env, "SELECT value FROM user_prefs WHERE user_id = ? AND key = 'nospend_cal'", [user.id], (r) => String(r.value))) !== '0';
-  return { user, users, household: household ?? '우리집 가계부', today: today(), categories, accounts, recurring, groups: GROUPS, accountKinds: ACCOUNT_KINDS, balanceAccounts: pinned ? (JSON.parse(pinned) as string[]) : null, featureLoan, nospendCal };
+  // 꾸미기 (가족 공용): 테마 색 이름, 표지·스티커 그림이 바뀐 때(있으면 숫자, 없으면 null — 그림 자체는 /look/:kind 로 따로)
+  const [theme, coverVer, homeId] = await Promise.all([getSetting(env, 'look_theme'), getSetting(env, 'look_cover_ver'), getSetting(env, 'look_home_id')]);
+  // 스티커 보관함이 바뀐 표시 (장 수 + 마지막으로 바뀐 때). 0024 표가 아직 없으면 없음으로
+  const st = await first(env, "SELECT COUNT(*) AS n, MAX(created_at) AS t FROM look_images WHERE kind = 'sticker'", [], (r) => ({ n: Number(r.n), t: Number(r.t ?? 0) })).catch(() => null);
+  const stickerVer = st && st.n > 0 ? `${st.n}-${st.t}` : null;
+  return { user, users, household: household ?? '우리집 가계부', today: today(), categories, accounts, recurring, groups: GROUPS, accountKinds: ACCOUNT_KINDS, balanceAccounts: pinned ? (JSON.parse(pinned) as string[]) : null, featureLoan, nospendCal, theme: theme ?? 'green', coverVer, stickerVer, homeId: coverVer ? homeId : null };
 }
 
 // 거래 화면 위 "통장 잔액"에 보일 통장 (사람마다 따로 기억)

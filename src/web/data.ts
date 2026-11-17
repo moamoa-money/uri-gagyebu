@@ -13,6 +13,10 @@ export interface Boot {
   balanceAccounts: string[] | null;
   featureLoan: boolean;
   nospendCal?: boolean;
+  theme?: string;
+  coverVer?: string | null;
+  stickerVer?: string | null;
+  homeId?: string | null;
 }
 export type AccountWithBalance = Account & { balance: number };
 export interface TxList {

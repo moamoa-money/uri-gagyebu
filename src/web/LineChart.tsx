@@ -74,20 +74,20 @@ export function LineChart({ points, color, height = 240, valueText, axisText = m
             {p.label}
           </text>
         ))}
-        <path d={d} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <path d={d} fill="none" style={{ stroke: color }} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {/* 달마다 점 (흰 테두리로 선 위에서도 또렷하게) */}
         {points.map((p, i) => (
-          <circle key={'pt' + i} cx={x(i)} cy={y(p.value)} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
+          <circle key={'pt' + i} cx={x(i)} cy={y(p.value)} r={5.5} style={{ fill: color }} stroke="#fff" strokeWidth={2} />
         ))}
         {/* 끝점 + 값 (선 색이 아니라 글자색으로) */}
-        <circle cx={x(last)} cy={y(points[last].value)} r={4.5} fill={color} stroke="#fff" strokeWidth={2} />
+        <circle cx={x(last)} cy={y(points[last].value)} r={4.5} style={{ fill: color }} stroke="#fff" strokeWidth={2} />
         <text x={x(last) + 10} y={y(points[last].value) + 4} className="lc-end">
           {endText(points[last].value)}
         </text>
         {hover !== null && (
           <g pointerEvents="none">
             <line x1={x(hover)} x2={x(hover)} y1={padT} y2={padT + ih} className="lc-cross" />
-            <circle cx={x(hover)} cy={y(points[hover].value)} r={4.5} fill={color} stroke="#fff" strokeWidth={2} />
+            <circle cx={x(hover)} cy={y(points[hover].value)} r={4.5} style={{ fill: color }} stroke="#fff" strokeWidth={2} />
           </g>
         )}
         <rect x={padL} y={padT} width={iw} height={ih} fill="transparent" onPointerMove={move} onPointerLeave={() => setHover(null)} />

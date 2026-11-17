@@ -4,12 +4,13 @@ import { won, parseAmount } from '../shared/rules';
 import { isSpending, type Category, type Group, type Recurring } from '../shared/types';
 import { api } from './api';
 import { NewBadge } from './NewBadge';
+import { LookSettings } from './Look';
 import { GROUP_ICON, Icon, ICONS, iconKey } from './Icon';
 import type { Boot, Toast } from './data';
 import { NotionCleanup } from './NotionCleanup';
 
 export function Settings({ boot, onError, toast, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; reloadBoot: () => void }) {
-  const [tab, setTab] = useState<'cat' | 'rec' | 'family' | 'feature' | 'notion'>('cat');
+  const [tab, setTab] = useState<'cat' | 'rec' | 'family' | 'feature' | 'look' | 'notion'>('cat');
   // 예전에 노션에서 가져온 가계부만 '정리' 탭을 보여 준다
   const [notionDate, setNotionDate] = useState<string | null>(null);
   useEffect(() => {
@@ -25,6 +26,7 @@ export function Settings({ boot, onError, toast, reloadBoot }: { boot: Boot; onE
             ['rec', '고정지출', '매월 자동'],
             ['family', '가족', '비밀번호'],
             ['feature', '더 쓰는', '기능'],
+            ['look', '꾸미기', ''],
             ...(boot.user.role === 'owner' && notionDate ? ([['notion', '노션 가져온', '것 정리']] as const) : []),
           ] as const
         ).map(([k, a, b]) => (
@@ -48,6 +50,7 @@ export function Settings({ boot, onError, toast, reloadBoot }: { boot: Boot; onE
           onError={onError}
         />
       )}
+      {tab === 'look' && <LookSettings boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} />}
       {tab === 'feature' && <Features boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} />}
     </>
   );
@@ -57,9 +60,20 @@ type P = { boot: Boot; onError: (e: unknown) => void; toast: Toast; reloadBoot: 
 
 function Categories({ boot, onError, toast, reloadBoot }: P) {
   const [edit, setEdit] = useState<Partial<Category> | null>(null);
+  // 머니노트 카테고리: 올해 머니노트에 잡은 이번 달·1년 금액도 같이 보여 줌
+  const [mnInfo, setMnInfo] = useState(false); // '머니노트 예산은 머니노트 탭에서' 안내 팝업
+  const [mn, setMn] = useState<{ categoryId: string; month: string; amount: number }[]>([]);
+  useEffect(() => {
+    api<{ notes: { categoryId: string; month: string; amount: number }[] }>(`/money-notes?year=${boot.today.slice(0, 4)}`)
+      .then((r) => setMn(r.notes))
+      .catch(() => setMn([]));
+  }, [boot.today]);
+  const mnSum = (cid: string, month?: string) => mn.filter((n) => n.categoryId === cid && (!month || n.month === month)).reduce((a, n) => a + n.amount, 0);
   async function save() {
     try {
-      await api('/categories', { ...edit, budget: parseAmount(String(edit?.budget ?? 0)) ?? 0 });
+      // 머니노트만으로 예산을 잡는 카테고리는 기본 월 예산 0 (예산은 머니노트에서)
+      const onlyNote = (edit?.grp === 'var' || edit?.grp === 'fix') && edit?.moneynote && !edit?.moneynoteAdd;
+      await api('/categories', { ...edit, budget: onlyNote ? 0 : parseAmount(String(edit?.budget ?? 0)) ?? 0 });
       toast('저장했어요');
       setEdit(null);
       reloadBoot();
@@ -127,6 +141,23 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
   const sideOf = (g?: string) => (g === 'var' || g === 'fix' || g === 'spc' ? 'out' : g);
   return (
     <div className="split">
+      {mnInfo && (
+        <div className="pop-bg" style={{ zIndex: 150 }} onClick={(e) => e.target === e.currentTarget && setMnInfo(false)}>
+          <div className="card pop" style={{ width: 'min(420px, 100%)' }}>
+            <h3>머니노트 예산</h3>
+            <p style={{ margin: '4px 0 14px' }}>머니노트 카테고리의 달별 예산은 <b>머니플랜 › 머니노트</b> 탭에서 설정할 수 있습니다.</p>
+            <div className="row pop-actions">
+              <span className="spacer" />
+              <button className="btn" onClick={() => setMnInfo(false)}>
+                닫기
+              </button>
+              <button className="btn main" onClick={() => (window.location.hash = `#/plan?tab=note&year=${boot.today.slice(0, 4)}`)}>
+                머니노트로 가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="main-col">
         {boot.groups.map((g) => {
           const base = boot.categories.filter((c) => c.grp === g.key);
@@ -151,7 +182,18 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                         <Icon name={c.icon} /> <b>{c.name}</b> {c.hidden && <span className="tag">숨김</span>}
                       </td>
                       <td className="r">
-                        {c.moneynote && <span className="tag" title="머니노트에 적은 달은 그 금액이 예산">머니노트</span>} {c.budget ? `월 ${won(c.budget)}원` : <span className="muted">예산 없음</span>}
+                        {c.moneynote ? (
+                          <span className="budget-pair">
+                            {c.budget > 0 && <span>월 {won(c.budget)}원</span>}
+                            <span className="click" title="눌러서 머니노트로" onClick={() => setMnInfo(true)}>
+                              <span className="tag">머니노트</span> 1년 {won(mnSum(c.id))}원
+                            </span>
+                          </span>
+                        ) : c.budget ? (
+                          `월 ${won(c.budget)}원`
+                        ) : (
+                          <span className="muted">예산 없음</span>
+                        )}
                       </td>
                       <td className="r nowrap">
                         <button className="btn sm" onClick={() => (setDel(null), setEdit({ ...c }))}>
@@ -192,8 +234,17 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                   </button>
                 ))}
               </div>
-              <label>월 예산</label>
-              <input className="text money" inputMode="numeric" placeholder="0" value={edit.budget ? won(edit.budget) : ''} onChange={(e) => setEdit({ ...edit, budget: parseAmount(e.target.value) ?? 0 })} />
+              <label>{edit.moneynote && edit.moneynoteAdd ? '매달 기본 예산' : '월 예산'}</label>
+              {edit.moneynote && !edit.moneynoteAdd ? (
+                // 머니노트만으로 예산을 잡는 카테고리: 예산은 머니노트 탭에서
+                <div>
+                  <button type="button" className="btn sm" onClick={() => setMnInfo(true)}>
+                    머니노트에서 달별 예산 적기 ▸
+                  </button>
+                </div>
+              ) : (
+                <input className="text money" inputMode="numeric" placeholder="0" value={edit.budget ? won(edit.budget) : ''} onChange={(e) => setEdit({ ...edit, budget: parseAmount(e.target.value) ?? 0 })} />
+              )}
               {(edit.grp === 'var' || edit.grp === 'fix') && (
                 <>
                   <label />

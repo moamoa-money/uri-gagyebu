@@ -4,6 +4,7 @@ import { addMonths, monthLabel, monthOf } from '../shared/dates';
 import { parseAmount, rateText, won, type BudgetLine, type MonthTotals, leftLabel, LEFT_HINT } from '../shared/rules';
 import { isSpending } from '../shared/types';
 import { NoSpendCard } from './NoSpend';
+import { useLookImage } from './Look';
 import { api } from './api';
 import { GROUP_ICON, Icon, UiIcon } from './Icon';
 import type { Boot, Toast } from './data';
@@ -81,6 +82,7 @@ function YearReport({ y, onSave }: { y: YearData; onSave: (n: number) => void })
 }
 
 export function Home({ boot, onError, toast, go }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (hash: string) => void }) {
+  const cover = useLookImage('cover', boot.coverVer);
   const [month, setMonth] = useState(monthOf(boot.today));
   const [d, setD] = useState<MonthData | null>(null);
   const load = useCallback(() => api<MonthData>(`/month?month=${month}`).then(setD).catch(onError), [month, onError]);
@@ -103,6 +105,7 @@ export function Home({ boot, onError, toast, go }: { boot: Boot; onError: (e: un
     <div className="split">
       <div className="main-col">
         <div className="head">
+          {cover && <img className="avatar" src={cover} alt="" />}
           <button className="btn sm" onClick={() => setMonth(addMonths(month, -1))}>
             ◀
           </button>
@@ -319,7 +322,7 @@ function Donut({ rate, left }: { rate: number | null; left: number | null }) {
     <div className="donut">
       <svg width="140" height="140" viewBox="0 0 140 140">
         <circle cx="70" cy="70" r={r} fill="none" stroke="#ece6df" strokeWidth="16" />
-        {p > 0 && <circle cx="70" cy="70" r={r} fill="none" stroke="#3f6e5a" strokeWidth="16" strokeLinecap="round" strokeDasharray={`${len * p} ${len}`} transform="rotate(-90 70 70)" />}
+        {p > 0 && <circle cx="70" cy="70" r={r} fill="none" style={{ stroke: "var(--accent)" }} strokeWidth="16" strokeLinecap="round" strokeDasharray={`${len * p} ${len}`} transform="rotate(-90 70 70)" />}
         <text x="70" y="74" textAnchor="middle" fontSize="24" fontWeight="800" fill="#2e2a27">
           {rate === null ? '-' : `${(rate * 100).toFixed(1)}%`}
         </text>
