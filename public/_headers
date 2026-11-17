@@ -1,0 +1,12 @@
+# 화면(html)은 늘 새로 받기 — 업데이트 뒤에 태블릿·홈 화면 앱이 예전 화면을 붙잡고 있지 않게
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/update.html
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
+# 이름에 지문(해시)이 붙은 파일은 오래 저장해도 됨
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

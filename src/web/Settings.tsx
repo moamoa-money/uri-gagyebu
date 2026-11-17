@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { won, parseAmount } from '../shared/rules';
 import { isSpending, type Category, type Group, type Recurring } from '../shared/types';
 import { api } from './api';
+import { NewBadge } from './NewBadge';
 import { GROUP_ICON, Icon, ICONS, iconKey } from './Icon';
 import type { Boot, Toast } from './data';
 import { NotionCleanup } from './NotionCleanup';
@@ -552,6 +553,15 @@ function Family({ boot, onError, toast, reloadBoot }: P) {
 
 // 원하는 사람만 켜는 기능 (나중에 배포할 때 다른 분들은 꺼진 채로 시작)
 function Features({ boot, onError, toast, reloadBoot }: P) {
+  async function setNospend(on: boolean) {
+    try {
+      await api('/prefs/nospend', { on });
+      toast(on ? '홈에 무지출 달력을 보여 줘요' : '무지출 달력을 껐어요');
+      reloadBoot();
+    } catch (e) {
+      onError(e);
+    }
+  }
   async function setLoan(on: boolean) {
     try {
       await api('/loans/feature', { on });
@@ -577,6 +587,22 @@ function Features({ boot, onError, toast, reloadBoot }: P) {
           <b>대출 상환표</b>
           <p className="muted small" style={{ margin: '4px 0 0' }}>
             은행 상환계획표를 붙여 넣어 달마다 원금·이자·남은 대출금을 보고, 앱 잔액과 1원까지 비교해요. 고른 달부터는 상환·대출이자 예산에 그달 상환표 금액이 자동으로 더해져요. 원금·이자가 달마다 조금씩 바뀌는 대출(원리금균등)에 좋아요.
+          </p>
+        </div>
+      </div>
+      <div className="row" style={{ alignItems: 'flex-start', gap: 14, marginTop: 16 }}>
+        <span className="seg">
+          <button className={boot.nospendCal !== false ? 'on' : ''} onClick={() => setNospend(true)}>
+            켜기
+          </button>
+          <button className={boot.nospendCal === false ? 'on' : ''} onClick={() => setNospend(false)}>
+            끄기
+          </button>
+        </span>
+        <div>
+          <b>무지출 달력</b> <NewBadge id="nospend-setting" />
+          <p className="muted small" style={{ margin: '4px 0 0' }}>
+            홈에 이번 달 무지출한 날을 달력으로 보여 줘요. 나만 켜고 끌 수 있어요(가족은 각자).
           </p>
         </div>
       </div>

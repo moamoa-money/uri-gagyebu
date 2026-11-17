@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { addMonths, monthLabel, monthOf } from '../shared/dates';
 import { parseAmount, rateText, won, type BudgetLine, type MonthTotals, leftLabel, LEFT_HINT } from '../shared/rules';
 import { isSpending } from '../shared/types';
+import { NoSpendCard } from './NoSpend';
 import { api } from './api';
 import { GROUP_ICON, Icon, UiIcon } from './Icon';
 import type { Boot, Toast } from './data';
@@ -292,6 +293,7 @@ export function Home({ boot, onError, toast, go }: { boot: Boot; onError: (e: un
       </div>
       <div className="side-col">
         {y && <YearReport y={y} onSave={saveTarget} />}
+        {boot.nospendCal !== false && <NoSpendCard month={month} onError={onError} go={go} />}
         <div className="card only-desktop">
           <h3 className="withico"><UiIcon name="plus" /> 빠른 입력</h3>
           <TxForm

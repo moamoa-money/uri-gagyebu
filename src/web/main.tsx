@@ -213,7 +213,7 @@ function App() {
   const params = new URLSearchParams(qs ?? '');
   let body;
   if (path.startsWith('/tx'))
-    body = <Transactions key={qs ?? ''} boot={boot} onError={onError} toast={toast} initial={{ account: params.get('account') ?? undefined, category: params.get('category') ?? undefined, month: params.get('month') ?? undefined, grp: params.get('grp') ?? undefined }} />;
+    body = <Transactions key={qs ?? ''} boot={boot} onError={onError} toast={toast} initial={{ account: params.get('account') ?? undefined, category: params.get('category') ?? undefined, month: params.get('month') ?? undefined, grp: params.get('grp') ?? undefined, day: params.get('day') ?? undefined }} />;
   else if (path.startsWith('/plan') || path.startsWith('/moneynote'))
     body = <Plan key={qs ?? ''} boot={boot} onError={onError} toast={toast} go={go} reloadBoot={loadBoot} tab={path.startsWith('/moneynote') || params.get('tab') !== 'plan' ? 'note' : 'plan'} initial={{ year: params.get('year') ?? undefined, month: params.get('month') ?? undefined, category: params.get('category') ?? undefined }} />;
   else if (path.startsWith('/quick')) body = <Quick boot={boot} onError={onError} toast={toast} go={go} />;

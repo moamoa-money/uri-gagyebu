@@ -13,11 +13,11 @@ import { DateInput } from './DateInput';
 
 type Period = 'week' | 'lastweek' | 'month' | 'last' | 'year' | 'all' | 'custom';
 
-export function Transactions({ boot, onError, toast, initial }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; initial?: { account?: string; category?: string; month?: string; grp?: string } }) {
+export function Transactions({ boot, onError, toast, initial }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; initial?: { account?: string; category?: string; month?: string; grp?: string; day?: string } }) {
   const thisMonth = monthOf(boot.today);
-  const [period, setPeriod] = useState<Period>(initial?.month ? 'custom' : 'month');
-  const [from, setFrom] = useState(initial?.month ? `${initial.month}-01` : `${thisMonth}-01`);
-  const [to, setTo] = useState(initial?.month ? `${initial.month}-31` : `${thisMonth}-31`);
+  const [period, setPeriod] = useState<Period>(initial?.month || initial?.day ? 'custom' : 'month');
+  const [from, setFrom] = useState(initial?.day ?? (initial?.month ? `${initial.month}-01` : `${thisMonth}-01`));
+  const [to, setTo] = useState(initial?.day ?? (initial?.month ? `${initial.month}-31` : `${thisMonth}-31`));
   const [q, setQ] = useState('');
   const [account, setAccount] = useState(initial?.account ?? '');
   const [grps, setGrps] = useState<string[]>(initial?.grp ? initial.grp.split(',') : []);

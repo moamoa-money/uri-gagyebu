@@ -8,6 +8,8 @@ import { api } from './api';
 import type { Boot, Toast } from './data';
 import { GROUP_ICON, Icon } from './Icon';
 import { LineChart } from './LineChart';
+import { NoSpendMini, NoSpendStat } from './NoSpend';
+import { NewBadge } from './NewBadge';
 import { toBlob, toPng } from 'html-to-image';
 import { CafeOptions, ShortImage, uptoOf, useCafePrefs, type ShortData } from './Roadmap';
 import { LongImageFor, type LongData } from './LongRoadmap';
@@ -322,6 +324,7 @@ function SpendSection({ grp, d, boot, onError, reload, go, setD, toast }: { grp:
               </span>
             </>
           )}
+          {grp === 'var' && boot.nospendCal !== false && <NoSpendStat month={d.month} onError={onError} />}
         </div>
         {overIds.length > 0 && (
           <a className="click small muted" onClick={() => setOpen(overIds.every((i) => open.has(i)) ? new Set() : new Set(overIds))}>
@@ -981,6 +984,8 @@ function NextBudgetNotes({ grp, d, onError, setD }: { grp: 'var' | 'fix'; d: Rev
 
 // ---------- 카페 이미지: 가계부 결산 한 장 (변동·고정·수입·저축 기준표 + 피드백) ----------
 function CafeImage({ d, boot, filled, toast, onError }: { d: ReviewData; boot: Boot; filled: (k: string) => boolean; toast: Toast; onError: (e: unknown) => void }) {
+  const [withNs, setWithNsState] = useState(() => localStorage.getItem('gb_cafe_nospend') === '1'); // 무지출 달력 넣기 (고른 것 기억)
+  const setWithNs = (v: boolean) => (localStorage.setItem('gb_cafe_nospend', v ? '1' : '0'), setWithNsState(v));
   const ref = useRef<HTMLDivElement>(null);
   const prefs = useCafePrefs();
   const [busy, setBusy] = useState(false);
@@ -1169,6 +1174,11 @@ function CafeImage({ d, boot, filled, toast, onError }: { d: ReviewData; boot: B
           )}
         </div>
         <CafeOptions p={prefs} toast={toast} money={false} />
+        {boot.nospendCal !== false && (
+          <label className="check small" style={{ marginTop: 6 }}>
+            <input type="checkbox" checked={withNs} onChange={(e) => setWithNs(e.target.checked)} /> 무지출 달력 넣기 <NewBadge id="cafe-nospend" />
+          </label>
+        )}
         {need.length > 0 && <p className="warn small">아직 비어 있는 피드백: {need.map((k) => names[k]).join(' · ')} (비어 있어도 만들 수는 있어요)</p>}
       </div>
       <div className="cf-wrap">
@@ -1200,7 +1210,13 @@ function CafeImage({ d, boot, filled, toast, onError }: { d: ReviewData; boot: B
               </b>
             </div>
           </div>
-          {d.pledges.length > 0 && <CafePledges title={`${Number(d.prev.slice(5))}월 다짐 결과`} list={d.pledges} boot={boot} result />}
+          {/* 지난달 다짐 결과 + 이번 달 무지출 달력을 한 줄에 나란히 */}
+          {(d.pledges.length > 0 || (withNs && boot.nospendCal !== false)) && (
+            <div className="cf-plrow">
+              {d.pledges.length > 0 && <CafePledges title={`${Number(d.prev.slice(5))}월 다짐 결과`} list={d.pledges} boot={boot} result />}
+              {withNs && boot.nospendCal !== false && <NoSpendMini month={d.month} onError={onError} />}
+            </div>
+          )}
           {section('var')}
           {section('fix')}
           {section('inc')}

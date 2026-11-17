@@ -12,6 +12,7 @@ export interface Boot {
   accountKinds: string[];
   balanceAccounts: string[] | null;
   featureLoan: boolean;
+  nospendCal?: boolean;
 }
 export type AccountWithBalance = Account & { balance: number };
 export interface TxList {

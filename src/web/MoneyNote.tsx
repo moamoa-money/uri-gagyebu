@@ -6,6 +6,7 @@ import { api } from './api';
 import type { Boot, Toast } from './data';
 import type { Category } from '../shared/types';
 import { Icon } from './Icon';
+import { NewBadge } from './NewBadge';
 
 interface Note {
   id: string;
@@ -23,6 +24,7 @@ interface Data {
 }
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+let cellClip: { text: string; notes: { title: string; amount: number }[] } | null = null; // 표에서 복사해 둔 칸
 
 export function MoneyNote({ boot, onError, toast, go, initial, embedded = false, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; initial?: { year?: string; month?: string; category?: string }; embedded?: boolean; reloadBoot?: () => void }) {
   const year = initial?.year ?? boot.today.slice(0, 4);
@@ -40,6 +42,93 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
   // 머니노트 카테고리 + (표시는 안 했지만) 이 해에 적어 둔 게 있는 카테고리는 '참고'로
   // 머니노트 = 지출(변동·고정) 카테고리만. 대분류를 수입·저축 등으로 옮긴 카테고리는 표시가 남아 있어도 빼기
   const cats = boot.categories.filter((c) => (c.moneynote && !c.hidden && (c.grp === 'var' || c.grp === 'fix')) || d?.notes.some((n) => n.categoryId === c.id)).sort((a, b) => Number(b.moneynote) - Number(a.moneynote) || a.sort - b.sort);
+  // 엑셀처럼 표 칸 복사·붙여넣기 — 칸을 고르고 Ctrl+C/Ctrl+V, 또는 칸에서 마우스 오른쪽 버튼(태블릿은 길게 누르기) → 복사/붙여넣기
+  //  · 가계부 안 칸에서 복사 → 그 칸의 줄(이름·금액)을 그대로 더함 (세부 항목 칸이면 그 항목 금액으로)
+  //  · 다른 프로그램에서 복사한 숫자 → 카테고리 칸: 줄이 하나면 금액을 바꾸고, 없으면 카테고리 이름으로 한 줄 / 세부 항목 칸: 그 항목 금액
+  type Target = { cid: string; month: string; title?: string };
+  const [menu, setMenu] = useState<{ x: number; y: number; t: Target } | null>(null);
+  const copyFrom = (t: Target) => {
+    if (!d) return '';
+    const ns = d.notes.filter((n) => n.categoryId === t.cid && n.month === t.month && (t.title === undefined || n.title.trim() === t.title));
+    const text = String(ns.reduce((a, n) => a + n.amount, 0));
+    cellClip = { text, notes: ns.map((n) => ({ title: t.title ?? n.title, amount: n.amount })) };
+    toast(ns.length ? '복사했어요' : '빈 칸을 복사했어요');
+    return text;
+  };
+  const pasteTo = async (t: Target, raw: string) => {
+    if (!d) return;
+    const cat = boot.categories.find((c) => c.id === t.cid);
+    const fromApp = !!cellClip && raw.trim() === cellClip.text && cellClip.notes.length > 0;
+    const m = raw.match(/[\d,]+(?:\.\d+)?/);
+    const typed = m ? Number(m[0].replace(/,/g, '').split('.')[0]) : 0;
+    try {
+      let r: Data | null = null;
+      if (t.title !== undefined) {
+        // 세부 항목 칸: 그 항목의 그달 금액
+        const amount = fromApp ? cellClip!.notes.reduce((a, n) => a + n.amount, 0) : typed;
+        if (!amount) return toast('붙여넣을 금액이 없어요');
+        r = await api<Data>('/money-item/save', { year, categoryId: t.cid, from: t.title, title: t.title, amounts: { [t.month.slice(5)]: amount } });
+      } else if (fromApp) {
+        for (const n of cellClip!.notes) r = await api<Data>('/money-note', { categoryId: t.cid, month: t.month, title: n.title, amount: n.amount, memo: '' });
+      } else {
+        if (!typed) return toast('붙여넣을 금액이 없어요');
+        const ns = d.notes.filter((n) => n.categoryId === t.cid && n.month === t.month);
+        r = ns.length === 1 ? await api<Data>('/money-note', { ...ns[0], amount: typed }) : await api<Data>('/money-note', { categoryId: t.cid, month: t.month, title: cat?.name ?? '머니노트', amount: typed, memo: '' });
+      }
+      if (r) {
+        setD(r);
+        toast(`${Number(t.month.slice(5))}월 ${t.title ?? cat?.name ?? ''}에 붙여넣었어요`);
+      }
+    } catch (err) {
+      onError(err);
+    }
+  };
+  const menuCopy = async () => {
+    if (!menu) return;
+    const text = copyFrom(menu.t);
+    setMenu(null);
+    await navigator.clipboard?.writeText(text).catch(() => undefined);
+  };
+  const menuPaste = async () => {
+    if (!menu) return;
+    const t = menu.t;
+    setMenu(null);
+    let raw = '';
+    try {
+      raw = (await navigator.clipboard?.readText()) ?? '';
+    } catch {
+      raw = cellClip?.text ?? ''; // 기기가 클립보드를 못 읽게 하면 가계부 안에서 복사한 것만
+    }
+    if (!raw && cellClip) raw = cellClip.text;
+    await pasteTo(t, raw);
+  };
+  useEffect(() => {
+    const typing = () => {
+      const a = document.activeElement as HTMLElement | null;
+      return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable);
+    };
+    const onCopy = (e: ClipboardEvent) => {
+      if (!sel || typing() || String(window.getSelection() ?? '').trim()) return;
+      e.preventDefault();
+      e.clipboardData?.setData('text/plain', copyFrom({ cid: sel.categoryId, month: sel.month }));
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      if (!sel || typing()) return;
+      e.preventDefault();
+      void pasteTo({ cid: sel.categoryId, month: sel.month }, e.clipboardData?.getData('text') ?? '');
+    };
+    const close = () => setMenu(null);
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('paste', onPaste);
+    document.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('paste', onPaste);
+      document.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  });
   if (!d) return <p className="muted">불러오는 중…</p>;
   const notesOf = (cid: string, m: string) => d.notes.filter((n) => n.categoryId === cid && n.month === `${year}-${m}`);
   const oldBudget = (cid: string, m: string) => d.budgets.find((b) => b.categoryId === cid && b.month === `${year}-${m}`)?.amount ?? 0;
@@ -87,7 +176,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
           )}
           <span className="spacer" />
           <label className="check">
-            <input type="checkbox" checked={expand} onChange={(e) => setExpand(e.target.checked)} /> 항목별로 펼쳐 보기
+            <input type="checkbox" checked={expand} onChange={(e) => setExpand(e.target.checked)} /> 항목별로 펼쳐 보기 <NewBadge id="mn-expand" />
           </label>
           {reloadBoot && (
             <button className={`btn sm ${listEdit ? 'main' : ''}`} onClick={() => setListEdit(!listEdit)}>
@@ -136,7 +225,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
                         const on = sel?.categoryId === c.id && sel.month === `${year}-${m}`;
                         const ob = oldBudget(c.id, m);
                         return (
-                          <td key={m} className={`r cell-click ${on ? 'on' : ''} ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => setSel({ categoryId: c.id, month: `${year}-${m}` })}>
+                          <td key={m} className={`r cell-click ${on ? 'on' : ''} ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => setSel({ categoryId: c.id, month: `${year}-${m}` })} onContextMenu={(e) => (e.preventDefault(), setSel({ categoryId: c.id, month: `${year}-${m}` }), setMenu({ x: e.clientX, y: e.clientY, t: { cid: c.id, month: `${year}-${m}` } }))}>
                             {ns.length > 0 && (
                               <div className="mtip">
                                 {ns.map((n) => (
@@ -164,7 +253,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
                                 {t || '(이름 없음)'}
                               </td>
                               {MONTHS.map((m) => (
-                                <td key={m} className={`r cell-click ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => setItemPop({ cid: c.id, title: t, focus: m })}>
+                                <td key={m} className={`r cell-click ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => setItemPop({ cid: c.id, title: t, focus: m })} onContextMenu={(e) => (e.preventDefault(), setMenu({ x: e.clientX, y: e.clientY, t: { cid: c.id, month: `${year}-${m}`, title: t } }))}>
                                   {amt(m) ? won(amt(m)) : ''}
                                 </td>
                               ))}
@@ -198,11 +287,17 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
             <details className="help">
               <summary>머니노트란?</summary>
               <ul>
-                <li>가끔 나가는 돈(명절·생신·재산세·검진)을 그달에 미리 적어요.</li>
-                <li>적은 금액이 그달 예산이 되고, 1년 합계는 미리 떼어 둘 돈이에요.</li>
-                <li>칸을 누르면 적을 수 있어요.</li>
+                <li>가끔 나가는 돈(명절·생신·재산세·검진)을 해당 달에 미리 기록</li>
+                <li>기록한 금액 = 그달 예산, 1년 합계 = 미리 떼어 둘 돈</li>
+                <li>칸 선택 시 입력</li>
               </ul>
             </details>
+          </div>
+        )}
+        {menu && (
+          <div className="cell-menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+            <button onClick={menuCopy}>복사</button>
+            <button onClick={menuPaste}>붙여넣기</button>
           </div>
         )}
         {itemPop && (
@@ -236,6 +331,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
 function CellEditor({ sel, notes, boot, onClose, onChanged, onError, toast }: { sel: { categoryId: string; month: string }; notes: Note[]; boot: Boot; onClose: () => void; onChanged: (d: Data) => void; onError: (e: unknown) => void; toast: Toast }) {
   const cat = boot.categories.find((c) => c.id === sel.categoryId);
   const [edit, setEdit] = useState<Partial<Note> | null>(notes.length ? null : { title: '', amount: 0, memo: '' });
+  const [focusOn, setFocusOn] = useState(false); // 칸만 고른 상태에선 커서를 안 둠 → 표에서 Ctrl+V 붙여넣기가 되게
   const [amt, setAmt] = useState('');
   async function save() {
     if (!edit) return;
@@ -276,7 +372,7 @@ function CellEditor({ sel, notes, boot, onClose, onChanged, onError, toast }: { 
                   </td>
                   <td className="r">{won(n.amount)}</td>
                   <td className="r nowrap">
-                    <button className="btn sm" onClick={() => (setEdit(n), setAmt(won(n.amount)))}>
+                    <button className="btn sm" onClick={() => (setFocusOn(true), setEdit(n), setAmt(won(n.amount)))}>
                       고치기
                     </button>
                     <button className="btn sm danger" onClick={() => del(n.id)}>
@@ -296,7 +392,7 @@ function CellEditor({ sel, notes, boot, onClose, onChanged, onError, toast }: { 
         {edit ? (
           <div className="vform" style={{ marginTop: 10 }}>
             <label>무엇</label>
-            <input className="text" autoFocus value={edit.title ?? ''} placeholder="예: 추석 양가, 재산세 1기, 엄마 생일" onChange={(e) => setEdit({ ...edit, title: e.target.value })} />
+            <input className="text" autoFocus={focusOn} value={edit.title ?? ''} placeholder="예: 추석 양가, 재산세 1기, 엄마 생일" onChange={(e) => setEdit({ ...edit, title: e.target.value })} />
             <label>금액</label>
             <div className="row">
               <input className="text money" inputMode="numeric" value={amt} onChange={(e) => { const n = parseAmount(e.target.value); setAmt(n === null ? '' : won(n)); }} onKeyDown={(e) => e.key === 'Enter' && save()} />
@@ -315,7 +411,7 @@ function CellEditor({ sel, notes, boot, onClose, onChanged, onError, toast }: { 
             </div>
           </div>
         ) : (
-          <button className="btn main" style={{ marginTop: 10 }} onClick={() => (setEdit({ title: '', amount: 0, memo: '' }), setAmt(''))}>
+          <button className="btn main" style={{ marginTop: 10 }} onClick={() => (setFocusOn(true), setEdit({ title: '', amount: 0, memo: '' }), setAmt(''))}>
             ＋ 한 줄 더 적기
           </button>
         )}
@@ -355,9 +451,9 @@ function ListEditor({ boot, onError, toast, reloadBoot, onClose }: { boot: Boot;
       <details className="help">
         <summary>쓰는 법</summary>
         <ul>
-          <li>체크한 카테고리만 머니노트에 보여요.</li>
-          <li>이름은 고친 뒤 칸 밖을 누르면 저장돼요.</li>
-          <li>지우기·순서 바꾸기는 설정 › 카테고리 예산에서 해요.</li>
+          <li>체크한 카테고리만 머니노트에 표시</li>
+          <li>이름 수정 후 칸 밖을 누르면 저장</li>
+          <li>삭제·순서 변경: 설정 › 카테고리 예산</li>
         </ul>
       </details>
       <table className="list">

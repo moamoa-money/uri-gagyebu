@@ -19,6 +19,8 @@ import {
   runRecurring,
   saveAccount,
   saveCategory,
+  nospendView,
+  setNospendCal,
   saveInvestment,
   deleteInvestment,
   accountUsage,
@@ -135,6 +137,8 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (path === '/save-basis' && method === 'POST') return json(await setSaveBasis(env, user, body.basis, body.year));
     if (path === '/year-target' && method === 'POST') return json(await setYearTarget(env, user, body.year, body.amount));
     if (path === '/month') return json(await monthView(env, q.get('month') ?? ''));
+    if (path === '/nospend') return json(await nospendView(env, q.get('month') ?? ''));
+    if (path === '/prefs/nospend' && method === 'POST') return json(await setNospendCal(env, user, body.on));
     if (path === '/categories' && method === 'POST') return json(await saveCategory(env, user, body as never));
     if (path === '/categories/order' && method === 'POST') return json(await orderCategories(env, body.ids));
     if (path === '/categories/usage') return json(await categoryUsage(env, q.get('id') ?? ''));

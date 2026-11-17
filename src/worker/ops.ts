@@ -77,6 +77,31 @@ export async function runRecurring(env: Env, upToMonth = monthOf(today())) {
 
 // ---------- 처음 화면에 필요한 것 ----------
 
+/** 무지출 달력 켜기/끄기 (이 사람만) */
+export async function setNospendCal(env: Env, user: User, on: unknown) {
+  await run(env, "INSERT INTO user_prefs (user_id, key, value) VALUES (?, 'nospend_cal', ?) ON CONFLICT (user_id, key) DO UPDATE SET value = excluded.value", [user.id, on ? '1' : '0']);
+  return { ok: true };
+}
+
+/** 무지출 달력: 그달 '쓴 날' 목록. 쓴 날 = 변동·고정 카테고리 거래가 있는 날(고정지출 자동·한꺼번에 넣기로 들어간 것은 빼고) */
+export async function nospendView(env: Env, month: string) {
+  if (!isMonth(month)) throw new UserError('달이 이상해요.');
+  const spentIn = (m: string) =>
+    all(
+      env,
+      "SELECT t.date AS d, SUM(t.amount) AS s, COUNT(*) AS n FROM transactions t JOIN categories c ON c.id = t.category_id WHERE c.grp IN ('var', 'fix', 'spc') AND t.recurring_id IS NULL AND t.amount > 0 AND t.date >= ? AND t.date <= ? GROUP BY t.date",
+      [`${m}-01`, `${m}-31`],
+      (r) => ({ date: String(r.d), amount: Number(r.s), count: Number(r.n) }),
+    );
+  const prev = addMonths(month, -1);
+  const [spent, prevSpent] = await Promise.all([spentIn(month), spentIn(prev)]);
+  const t = today();
+  const daysIn = (m: string) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).getUTCDate();
+  // 지난 날 수: 이번 달이면 오늘까지, 지난 달이면 전부, 앞으로 올 달이면 0
+  const passed = (m: string) => (m < monthOf(t) ? daysIn(m) : m === monthOf(t) ? Number(t.slice(8, 10)) : 0);
+  return { month, today: t, spent, passedDays: passed(month), prevNoSpend: passed(prev) - prevSpent.length };
+}
+
 export async function bootstrap(env: Env, user: User) {
   await runRecurring(env);
   const [categories, accounts, recurring, users, household] = await Promise.all([
@@ -88,7 +113,9 @@ export async function bootstrap(env: Env, user: User) {
   ]);
   const pinned = await first(env, "SELECT value FROM user_prefs WHERE user_id = ? AND key = 'balance_accounts'", [user.id], (r) => String(r.value));
   const featureLoan = (await getSetting(env, 'feature_loan')) === '1';
-  return { user, users, household: household ?? '우리집 가계부', today: today(), categories, accounts, recurring, groups: GROUPS, accountKinds: ACCOUNT_KINDS, balanceAccounts: pinned ? (JSON.parse(pinned) as string[]) : null, featureLoan };
+  // 무지출 달력: 사람마다 켜고 끔 (기본 켜짐)
+  const nospendCal = (await first(env, "SELECT value FROM user_prefs WHERE user_id = ? AND key = 'nospend_cal'", [user.id], (r) => String(r.value))) !== '0';
+  return { user, users, household: household ?? '우리집 가계부', today: today(), categories, accounts, recurring, groups: GROUPS, accountKinds: ACCOUNT_KINDS, balanceAccounts: pinned ? (JSON.parse(pinned) as string[]) : null, featureLoan, nospendCal };
 }
 
 // 거래 화면 위 "통장 잔액"에 보일 통장 (사람마다 따로 기억)

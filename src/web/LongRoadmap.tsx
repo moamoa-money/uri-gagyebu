@@ -64,8 +64,8 @@ export function LongRoadmap({ year, boot, onError, toast, go }: { year: string; 
       <details className="help" style={{ marginTop: -8, marginBottom: 12 }}>
         <summary>로드맵이란?</summary>
         <ul>
-          <li>앞으로 몇십 년 동안의 자산 계획을 세우고 해마다 실제와 비교하는 곳이에요.</li>
-          <li>해마다 새로 만들어요 (2026 로드맵 → 2027 로드맵).</li>
+          <li>앞으로 수십 년의 자산 계획과 해마다의 실제 비교</li>
+          <li>해마다 새로 작성 (2026 로드맵 → 2027 로드맵)</li>
         </ul>
       </details>
       {d.plan ? <LongTable d={d} setD={setD} onError={onError} toast={toast} boot={boot} /> : d.carry ? <Carry d={d} setD={setD} onError={onError} toast={toast} /> : <Setup year={year} boot={boot} setD={setD} onError={onError} />}
