@@ -5,6 +5,7 @@ import { isSpending, type Group } from '../shared/types';
 import { api } from './api';
 import type { Boot } from './data';
 import { DateInput } from './DateInput';
+import { ItemChips, useItemSuggest } from './ItemChips';
 
 type Kind = Group | 'transfer';
 const KINDS: { key: Kind; name: string }[] = [
@@ -72,8 +73,10 @@ export function TxRow({ boot, onSaved, onError }: { boot: Boot; onSaved: () => v
     }
   }
   const enter = (e: React.KeyboardEvent) => e.key === 'Enter' && !busy && save();
+  const suggest = useItemSuggest(boot, kind === 'transfer' ? null : categoryId || null, date);
 
   return (
+    <>
     <tr className="newrow" onKeyDown={enter}>
       <td>
         <DateInput className="cell" value={date} onChange={setDate} />
@@ -130,5 +133,14 @@ export function TxRow({ boot, onSaved, onError }: { boot: Boot; onSaved: () => v
         </button>
       </td>
     </tr>
+    {suggest.length > 0 && (
+      <tr className="newrow">
+        <td />
+        <td colSpan={8}>
+          <ItemChips titles={suggest} current={title} onPick={(t) => (setTitle(t), titleRef.current?.focus())} />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }

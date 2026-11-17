@@ -298,23 +298,16 @@ export function Transactions({ boot, onError, toast, initial }: { boot: Boot; on
       </div>
 
       {editing && (
-        <div className="side-col">
+        <div className="side-col as-modal" onClick={(e) => e.target === e.currentTarget && setEditing(null)}>
           <div className="card sticky">
-            <h3 className="row">
-              {editing === 'new' ? '거래 입력' : '거래 고치기'}
-              <span className="spacer" />
-              {editing !== 'new' && (
-                <button className="btn sm danger" onClick={() => remove(editing)}>
-                  지우기
-                </button>
-              )}
-            </h3>
+            <h3>{editing === 'new' ? '거래 입력' : '거래 고치기'}</h3>
             <TxForm
               key={editing === 'new' ? 'new' : editing.id}
               boot={boot}
               tx={editing === 'new' ? null : editing}
               onError={onError}
               onCancel={() => setEditing(null)}
+              onDelete={editing !== 'new' ? () => remove(editing) : undefined}
               onDone={() => {
                 toast(editing === 'new' ? '저장했어요' : '고쳤어요');
                 if (editing !== 'new') setEditing(null);

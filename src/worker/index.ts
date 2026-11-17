@@ -23,7 +23,11 @@ import {
   saveRecurring,
   saveTx,
   setMonthBudget,
-  setup, setBalanceAccounts, setSaveBasis, setYearTarget, yearView, reviewView, saveReviewNote, saveReviewCause, pledgesFor, savePledge, deletePledge, setPledgeResult, assetsView, undoMonthBudget, listMoneyNotes, saveMoneyNote, deleteMoneyNote, planView, setPlanCell, copyMoneyNotes, saveBudgetNote, shortRoadmap, setRoadmapInclude, longRoadmap, setupLongRoadmap, setLongYears, setLongMilestones, saveLongRow, saveLongNote, saveLongVersion, getLongVersion, setAssetActual, setAccountInAssets, loansView, setFeatureLoan, saveLoanSchedule, saveLoanLink, valuationsView, setValuation, batchView, saveBatch, carryLongRoadmap, annualView, saveYearRecord, saveYearNote, setHousehold, resetMemberPassword, setAssetTrendExclude, notionImportStatus, clearNotionImport } from './ops';
+  setup, setBalanceAccounts, setSaveBasis, setYearTarget, yearView, reviewView, saveReviewNote, saveReviewCause, pledgesFor, savePledge, deletePledge, setPledgeResult, assetsView, undoMonthBudget, listMoneyNotes, saveMoneyNote,
+  addMoneyItem,
+  saveMoneyItem,
+  renameMoneyItem,
+  deleteMoneyItem, deleteMoneyNote, planView, setPlanCell, copyMoneyNotes, saveBudgetNote, shortRoadmap, setRoadmapInclude, longRoadmap, setupLongRoadmap, setLongYears, setLongMilestones, saveLongRow, saveLongNote, saveLongVersion, getLongVersion, setAssetActual, setAccountInAssets, loansView, setFeatureLoan, saveLoanSchedule, saveLoanLink, valuationsView, setValuation, batchView, saveBatch, carryLongRoadmap, annualView, saveYearRecord, saveYearNote, setHousehold, resetMemberPassword, setAssetTrendExclude, notionImportStatus, clearNotionImport } from './ops';
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
@@ -110,6 +114,10 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (path === '/plan/cell' && method === 'POST') return json(await setPlanCell(env, user, body));
     if (path === '/money-notes/copy' && method === 'POST') return json(await copyMoneyNotes(env, user, body.year));
     if (path === '/money-notes') return json(await listMoneyNotes(env, q.get('year') ?? ''));
+    if (path === '/money-item/save' && method === 'POST') return json(await saveMoneyItem(env, user, body));
+    if (path === '/money-item/add' && method === 'POST') return json(await addMoneyItem(env, user, body));
+    if (path === '/money-item/rename' && method === 'POST') return json(await renameMoneyItem(env, user, body));
+    if (path === '/money-item/delete' && method === 'POST') return json(await deleteMoneyItem(env, user, body));
     if (path === '/money-note' && method === 'POST') return json(await saveMoneyNote(env, user, body));
     const mn = path.match(/^\/money-note\/([\w-]+)\/delete$/);
     if (mn && method === 'POST') return json(await deleteMoneyNote(env, user, mn[1]));

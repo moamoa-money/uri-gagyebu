@@ -31,6 +31,7 @@ interface ReviewData {
   nextBudgets: Record<string, number>;
   raised: Record<string, { old: number | null; amount: number }>;
   nextNotes: { id: string; categoryId: string; month: string; title: string; amount: number; memo: string }[];
+  thisNotes?: { id: string; categoryId: string; month: string; title: string; amount: number; memo: string }[];
   fixedThis: Record<string, { old: number | null; amount: number }>;
   nextBudgetNotes: Record<string, string>;
 }
@@ -467,25 +468,58 @@ function SpendSection({ grp, d, boot, onError, reload, go, setD, toast }: { grp:
                     <td colSpan={9}>
                       <table className="mini">
                         <tbody>
-                          {(all.has(id) ? mine : mine.slice(0, 5)).map((t) => (
-                            <tr key={t.id}>
-                              <td className="nowrap muted">{shortDate(t.date)}</td>
-                              <td>
-                                {t.title}
-                                {t.recurringId && <span className="tag">자동</span>}
-                              </td>
-                              <td className="r nowrap">
-                                <b>{won(t.amount)}</b>
-                              </td>
+                          {(() => {
+                            // 머니노트 세부 항목: 거래 내역 이름이 같으면(띄어쓰기 무시) 그 항목 예산과 비교 — 항목의 첫 거래 줄에 표시
+                            const plan = itemPlans((d.thisNotes ?? []).filter((n) => n.categoryId === id));
+                            const shown = new Set<string>();
+                            const actualOf = (k: string) => mine.filter((x) => normTitle(x.title) === k).reduce((a, x) => a + x.amount, 0);
+                            const rows = (all.has(id) ? mine : mine.slice(0, 5)).map((t) => {
+                              const k = normTitle(t.title);
+                              const p = plan.get(k);
+                              const first = p && !shown.has(k);
+                              if (p) shown.add(k);
+                              return (
+                                <tr key={t.id}>
+                                  <td className="nowrap muted">{shortDate(t.date)}</td>
+                                  <td>
+                                    {t.title}
+                                    {t.recurringId && <span className="tag">자동</span>}
+                                  </td>
+                                  {plan.size > 0 && <td className="r nowrap muted small">{first ? `예산 ${won(p.plan)}` : ''}</td>}
+                                  <td className="r nowrap">
+                                    <b>{won(t.amount)}</b>
+                                  </td>
+                                  {plan.size > 0 && <td className="nowrap">{first ? <ItemVerdict plan={p.plan} actual={actualOf(k)} /> : null}</td>}
                               <td className="muted nowrap">{accName(t.fromAccount)}</td>
                               <td className="muted small">{t.memo}</td>
-                              <td className="nowrap">
-                                <label className="check small" title="줄일 수 있었던 지출이면 표시">
-                                  <input type="checkbox" checked={t.unnecessary} onChange={() => toggleUnnecessary(t)} /> 불필요
-                                </label>
-                              </td>
-                            </tr>
-                          ))}
+                                  <td className="nowrap">
+                                    <label className="check small" title="줄일 수 있었던 지출이면 표시">
+                                      <input type="checkbox" checked={t.unnecessary} onChange={() => toggleUnnecessary(t)} /> 불필요
+                                    </label>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                            // 예산은 잡았는데 아직 거래가 없는 항목
+                            const waiting = [...plan.entries()].filter(([k]) => !mine.some((x) => normTitle(x.title) === k));
+                            return (
+                              <>
+                                {rows}
+                                {waiting.map(([k, p]) => (
+                                  <tr key={'w' + k}>
+                                    <td className="muted">—</td>
+                                    <td className="muted">{p.title}</td>
+                                    <td className="r nowrap muted small">예산 {won(p.plan)}</td>
+                                    <td className="r muted">0</td>
+                                    <td>
+                                      <span className="ic-tag wait">아직 안 씀</span>
+                                    </td>
+                                    <td colSpan={3} />
+                                  </tr>
+                                ))}
+                              </>
+                            );
+                          })()}
                         </tbody>
                       </table>
                       {mine.length > 5 && (
@@ -1457,5 +1491,27 @@ function AllCafeImages({ d, boot, filled, toast, onError, month }: { d: ReviewDa
         {ld?.plan && <LongImageFor d={ld} month={month} household={boot.household} toast={toast} onError={onError} />}
       </div>
     </div>
+  );
+}
+
+// 머니노트 세부 항목별 예산 ↔ 실제: 거래 내역 이름이 세부 항목 이름과 같으면(띄어쓰기 무시) 그 항목으로 셈
+const normTitle = (t: string) => t.replace(/\s+/g, '');
+function itemPlans(notes: { title: string; amount: number }[]) {
+  const m = new Map<string, { title: string; plan: number }>();
+  for (const n of notes) {
+    const k = normTitle(n.title);
+    const r = m.get(k) ?? { title: n.title.trim(), plan: 0 };
+    r.plan += n.amount;
+    m.set(k, r);
+  }
+  return m;
+}
+function ItemVerdict({ plan, actual }: { plan: number; actual: number }) {
+  const d = actual - plan;
+  if (d === 0) return <span className="ic-tag save">딱 맞음</span>;
+  return (
+    <span className={`ic-tag ${d > 0 ? 'over' : 'save'}`}>
+      {won(Math.abs(d))}원 {rateText(plan, actual)}
+    </span>
   );
 }

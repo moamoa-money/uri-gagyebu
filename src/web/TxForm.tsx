@@ -5,6 +5,7 @@ import { isSpending, type Group, type Tx } from '../shared/types';
 import { api } from './api';
 import type { Boot } from './data';
 import { DateInput } from './DateInput';
+import { ItemChips, useItemSuggest } from './ItemChips';
 
 type Kind = Group | 'transfer';
 const KINDS: { key: Kind; name: string }[] = [
@@ -16,7 +17,7 @@ const KINDS: { key: Kind; name: string }[] = [
   { key: 'transfer', name: '이체' },
 ];
 
-export function TxForm({ boot, tx, onDone, onCancel, onError }: { boot: Boot; tx?: Tx | null; onDone: (t: Tx) => void; onCancel?: () => void; onError: (e: unknown) => void }) {
+export function TxForm({ boot, tx, onDone, onCancel, onDelete, onError }: { boot: Boot; tx?: Tx | null; onDone: (t: Tx) => void; onCancel?: () => void; onDelete?: () => void; onError: (e: unknown) => void }) {
   const catOf = (id: string | null) => boot.categories.find((c) => c.id === id);
   const startKind: Kind = tx ? (tx.categoryId ? (catOf(tx.categoryId)?.grp ?? 'var') : 'transfer') : 'var';
   const [date, setDate] = useState(tx?.date ?? boot.today);
@@ -31,6 +32,7 @@ export function TxForm({ boot, tx, onDone, onCancel, onError }: { boot: Boot; tx
   const [busy, setBusy] = useState(false);
 
   const cats = boot.categories.filter((c) => c.grp === kind && (!c.hidden || c.id === categoryId));
+  const suggest = useItemSuggest(boot, kind === 'transfer' ? null : categoryId, date);
   const accounts = boot.accounts.filter((a) => !a.hidden || a.id === from || a.id === to);
   const needFrom = kind !== 'inc';
   const needTo = !isSpending(kind);
@@ -133,7 +135,10 @@ export function TxForm({ boot, tx, onDone, onCancel, onError }: { boot: Boot; tx
       </select>
 
       <label>내역</label>
-      <input className="text" placeholder={kind === 'transfer' ? '예: 생활비 → 투자대기' : '예: 마트 장보기'} value={title} onChange={(e) => setTitle(e.target.value)} />
+      <div>
+        <input className="text" placeholder={kind === 'transfer' ? '예: 생활비 → 투자대기' : '예: 마트 장보기'} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <ItemChips titles={suggest} current={title} onPick={setTitle} />
+      </div>
 
       <label>메모</label>
       <input className="text" placeholder="선택" value={memo} onChange={(e) => setMemo(e.target.value)} />
@@ -147,16 +152,21 @@ export function TxForm({ boot, tx, onDone, onCancel, onError }: { boot: Boot; tx
         </>
       )}
 
-      <label />
-      <div className="row">
-        <button className="btn main" disabled={busy} onClick={save}>
-          {tx ? '고치기' : '저장'}
-        </button>
+      <div className="row pop-actions">
+        {onDelete && (
+          <button className="btn sm danger" onClick={onDelete}>
+            이 거래 지우기
+          </button>
+        )}
+        <span className="spacer" />
         {onCancel && (
           <button className="btn" onClick={onCancel}>
             닫기
           </button>
         )}
+        <button className="btn main" disabled={busy} onClick={save}>
+          {tx ? '고치기' : '저장'}
+        </button>
       </div>
     </div>
   );

@@ -168,7 +168,7 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
           );
         })}
       </div>
-      <div className="side-col">
+      <div className={`side-col ${edit ? 'as-modal' : ''}`} onClick={(e) => e.target === e.currentTarget && setEdit(null)}>
         {edit && (
           <div className="card sticky">
             <h3>{edit.id ? '카테고리 고치기' : '카테고리 추가'}</h3>
@@ -202,14 +202,21 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                   {edit.moneynote && (
                     <>
                       <label />
-                      <span className="seg">
-                        <button className={!edit.moneynoteAdd ? 'on' : ''} onClick={() => setEdit({ ...edit, moneynoteAdd: false })}>
-                          적은 달은 머니노트 금액으로
-                        </button>
-                        <button className={edit.moneynoteAdd ? 'on' : ''} onClick={() => setEdit({ ...edit, moneynoteAdd: true })}>
-                          월 예산 + 머니노트 더하기
-                        </button>
-                      </span>
+                      <div className="mn-mode">
+                        <div className="mn-mode-q">머니노트에 금액을 적은 달, 그달 예산은?</div>
+                        {[
+                          { add: false, t: '머니노트 금액만', ex: (b: string) => `월 예산 ${b} 대신 머니노트 금액만 (예: 경조사·여행처럼 평소엔 안 쓰는 것)` },
+                          { add: true, t: '월 예산 + 머니노트', ex: (b: string) => `월 예산 ${b}에 머니노트 금액을 더해서 (예: 자동차 — 기름값은 매달, 정비비는 그달에 더)` },
+                        ].map((o) => (
+                          <label key={String(o.add)} className={`mn-mode-opt ${!!edit.moneynoteAdd === o.add ? 'on' : ''}`}>
+                            <input type="radio" checked={!!edit.moneynoteAdd === o.add} onChange={() => setEdit({ ...edit, moneynoteAdd: o.add })} />
+                            <span>
+                              <b>{o.t}</b>
+                              <span className="muted small"> — {o.ex(edit.budget ? `${won(edit.budget)}원` : '')}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
                     </>
                   )}
                 </>
@@ -223,26 +230,11 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                 </>
               )}
               <label />
-              <div className="row">
-                <button className="btn main" onClick={save}>
-                  저장
-                </button>
-                <button className="btn" onClick={() => setEdit(null)}>
-                  닫기
-                </button>
-              </div>
-              <label />
               <span className="muted small">이름을 바꾸거나 대분류를 옮겨도 지난 거래는 그대로 따라와요.</span>
-              {edit.id && (
+              {edit.id && del && (
                 <>
                   <label />
-                  {!del ? (
-                    <div>
-                      <button className="btn sm danger" onClick={askDelete}>
-                        이 카테고리 지우기
-                      </button>
-                    </div>
-                  ) : (
+                  {(
                     <div className="del-box">
                       <p>
                         <b>{edit.name}</b>에 적힌 것: {[del.tx && `거래 ${del.tx}건`, del.recurring && `고정지출 ${del.recurring}개`, del.notes && `머니노트 ${del.notes}줄`, del.loans && `상환표 연결`].filter(Boolean).join(', ')}
@@ -277,6 +269,20 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                   )}
                 </>
               )}
+              <div className="row pop-actions">
+                {edit.id && !del && (
+                  <button className="btn sm danger" onClick={askDelete}>
+                    이 카테고리 지우기
+                  </button>
+                )}
+                <span className="spacer" />
+                <button className="btn" onClick={() => setEdit(null)}>
+                  닫기
+                </button>
+                <button className="btn main" onClick={save}>
+                  저장
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -365,7 +371,7 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
           <p className="muted small"><b>매월 자동</b>: 정한 날 그달 거래가 저절로 들어가요. <b>한꺼번에 넣기</b>: 거래 화면 위 '고정지출'에서 금액을 확인하고 한 번에 넣어요(날짜·금액이 조금씩 바뀌는 항목에 좋아요).</p>
         </div>
       </div>
-      <div className="side-col">
+      <div className={`side-col ${edit ? 'as-modal' : ''}`} onClick={(e) => e.target === e.currentTarget && setEdit(null)}>
         {edit && (
           <div className="card sticky">
             <h3>{edit.id ? '고정 항목 고치기' : '고정 항목 추가'}</h3>
@@ -446,13 +452,13 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
               )}
               <label>끝나는 달</label>
               <input className="text" type="month" value={edit.endMonth ?? ''} onChange={(e) => setEdit({ ...edit, endMonth: e.target.value || null })} />
-              <label />
-              <div className="row">
-                <button className="btn main" onClick={save}>
-                  저장
-                </button>
+              <div className="row pop-actions">
+                <span className="spacer" />
                 <button className="btn" onClick={() => setEdit(null)}>
                   닫기
+                </button>
+                <button className="btn main" onClick={save}>
+                  저장
                 </button>
               </div>
             </div>

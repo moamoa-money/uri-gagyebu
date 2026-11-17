@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { parseAmount, won } from '../shared/rules';
 import { isSpending, type Group, type Tx } from '../shared/types';
 import { api } from './api';
+import { ItemChips, useItemSuggest } from './ItemChips';
 import type { Boot, Toast, TxList } from './data';
 import { Icon } from './Icon';
 import { DateInput } from './DateInput';
@@ -33,6 +34,7 @@ export function Quick({ boot, onError, toast, go, embedded = false, onSaved }: {
   const amtRef = useRef<HTMLInputElement>(null);
 
   const cats = boot.categories.filter((c) => c.grp === kind && !c.hidden);
+  const suggest = useItemSuggest(boot, kind === 'transfer' ? null : categoryId || null, date);
   const accounts = boot.accounts.filter((a) => !a.hidden);
   const fromOn = kind !== 'inc';
   const toOn = !isSpending(kind);
@@ -90,6 +92,7 @@ export function Quick({ boot, onError, toast, go, embedded = false, onSaved }: {
       </div>
 
       <input className="text q-title" placeholder="내역 (예: 쿠팡, 윤주부) — 비우면 카테고리 이름" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <ItemChips titles={suggest} current={title} onPick={setTitle} />
 
       <div className="q-kinds">
         {KINDS.map((k) => (

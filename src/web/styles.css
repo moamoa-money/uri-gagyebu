@@ -600,3 +600,41 @@ tr.dragging .drag-handle { cursor: grabbing; color: var(--accent); }
 table.mnote tr.mn-cat td { background: #f6f3ee; }
 table.mnote tr.mn-item td { font-size: 13.5px; color: #4a4540; }
 table.mnote tr.mn-item td:first-child { padding-left: 34px; }
+.mn-ibtn { border: 0; background: none; color: #b5aca3; cursor: pointer; font-size: 13px; padding: 0 3px; }
+.mn-ibtn:hover { color: var(--accent); }
+table.mnote tr.mn-add td { padding-left: 34px; border-bottom: 1px solid var(--line); }
+input.mn-cell-in { width: 92px; text-align: right; padding: 3px 6px; font-size: 13.5px; }
+
+/* 설정 고치기·추가 칸을 팝업으로 (시험 적용 2026-11-17) */
+.side-col.as-modal { position: fixed; inset: 0; z-index: 100; width: auto; background: rgba(30, 25, 20, 0.35); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.side-col.as-modal > .card { position: static; width: min(520px, 100%); max-height: 90vh; overflow: auto; margin: 0; box-shadow: 0 12px 40px rgba(30, 25, 20, 0.25); }
+
+/* 머니노트 세부 항목 팝업 */
+.pop-bg { position: fixed; inset: 0; z-index: 100; background: rgba(30, 25, 20, 0.35); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.card.pop { width: min(620px, 100%); max-height: 90vh; overflow: auto; margin: 0; box-shadow: 0 12px 40px rgba(30, 25, 20, 0.25); }
+.pop-months { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; margin: 12px 0 8px; }
+.pop-month { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--muted, #8a8f8b); }
+.pop-month input.text.money { width: 100%; min-width: 0; box-sizing: border-box; font-size: 15px; padding: 7px 9px; }
+@media (max-width: 560px) { .pop-months { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* 머니노트 예산 방식 고르기 */
+.mn-mode { border: 1px solid var(--line, #e5ded5); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.mn-mode-q { font-weight: 700; font-size: 14px; }
+.mn-mode-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; cursor: pointer; line-height: 1.45; }
+.mn-mode-opt.on { background: var(--soft, #eef5f1); }
+.mn-mode-opt input { margin-top: 3px; }
+
+/* 머니노트 세부 항목 추천 단추 · 결산 항목 비교 */
+.item-chips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 5px; }
+.chip.sm { padding: 2px 9px; font-size: 13px; }
+.item-compare { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 12px; }
+.item-compare .ic { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.item-compare .ic-name { min-width: 90px; font-weight: 600; }
+.ic-tag { display: inline-block; min-width: 118px; text-align: center; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+.ic-tag.over { background: #f8e3e1; color: var(--bad); }
+.ic-tag.save { background: #e6f1ea; color: var(--good); }
+.ic-tag.wait { background: #f1ede7; color: var(--muted, #8a8f8b); font-weight: 600; }
+
+/* 팝업 아래 버튼 줄: [지우기] ……… [닫기] [저장] */
+.vform .pop-actions { grid-column: 1 / -1; margin-top: 10px; }
+.pop-actions { gap: 8px; }
