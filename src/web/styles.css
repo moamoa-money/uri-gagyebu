@@ -751,3 +751,15 @@ html[data-theme='charcoal'] { --accent: #474c54; --soft: #e7e8ea; --tint: #f4f5f
 .tile small.tl-left { color: var(--ink); }
 .tile small .tile-hint { font-weight: 400; color: var(--muted); }
 .tile small .tile-hint { font-size: 13px; }
+
+/* 제목 속 연도 고르기: 누르면 작은 연도 판 */
+.yp { position: relative; display: inline-block; }
+.yp-btn { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; border-bottom: 2px dotted var(--line); }
+.yp-btn:hover { border-bottom-color: var(--accent); }
+.yp-pop { position: absolute; top: calc(100% + 6px); left: -8px; z-index: 50; display: flex; flex-direction: column; width: 96px; max-height: 260px; overflow-y: auto; padding: 5px; background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(40, 30, 20, 0.18); }
+.yp-pop button { font: inherit; font-size: 15px; font-weight: 600; text-align: center; padding: 5px 0; border: 0; border-radius: 7px; background: none; cursor: pointer; color: var(--ink); flex: 0 0 auto; }
+.yp-pop button:hover { background: var(--soft); }
+.yp-pop button.now { color: var(--accent); }
+.yp-pop button.on { background: var(--accent); color: #fff; }
+.home-pl-empty p { margin: 10px 0 10px; }
+.hg-a > .home-pl-empty { justify-content: center; }

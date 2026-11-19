@@ -39,7 +39,7 @@ import {
   addMoneyItem,
   saveMoneyItem,
   renameMoneyItem,
-  deleteMoneyItem, deleteMoneyNote, planView, setPlanCell, copyMoneyNotes, saveBudgetNote, shortRoadmap, setRoadmapInclude, longRoadmap, setupLongRoadmap, setLongYears, setLongMilestones, saveLongRow, saveLongNote, saveLongVersion, getLongVersion, setAssetActual, setAccountInAssets, loansView, setFeatureLoan, saveLoanSchedule, saveLoanLink, valuationsView, setValuation, batchView, saveBatch, carryLongRoadmap, annualView, saveYearRecord, saveYearNote, setHousehold, resetMemberPassword, setAssetTrendExclude, notionImportStatus, clearNotionImport } from './ops';
+  deleteMoneyItem, deleteMoneyNote, planView, setPlanCell, setPlanBasis, copyMoneyNotes, saveBudgetNote, shortRoadmap, setRoadmapInclude, longRoadmap, setupLongRoadmap, setLongYears, setLongMilestones, saveLongRow, saveLongNote, saveLongVersion, getLongVersion, setAssetActual, setAccountInAssets, loansView, setFeatureLoan, saveLoanSchedule, saveLoanLink, valuationsView, setValuation, batchView, saveBatch, carryLongRoadmap, annualView, saveYearRecord, saveYearNote, setHousehold, resetMemberPassword, setAssetTrendExclude, notionImportStatus, clearNotionImport } from './ops';
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
@@ -123,6 +123,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     if (path === '/loans/link' && method === 'POST') return json(await saveLoanLink(env, user, body));
     if (path === '/roadmap/short') return json(await shortRoadmap(env, q.get('year') ?? ''));
     if (path === '/plan') return json(await planView(env, q.get('year') ?? ''));
+    if (path === '/plan/basis' && method === 'POST') return json(await setPlanBasis(env, user, body.basis));
     if (path === '/plan/cell' && method === 'POST') return json(await setPlanCell(env, user, body));
     if (path === '/money-notes/copy' && method === 'POST') return json(await copyMoneyNotes(env, user, body.year));
     if (path === '/money-notes') return json(await listMoneyNotes(env, q.get('year') ?? ''));

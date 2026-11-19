@@ -6,10 +6,11 @@ import { won } from '../shared/rules';
 import { api } from './api';
 import type { Boot, Toast } from './data';
 import { MoneyNote } from './MoneyNote';
+import { YearPick } from './YearPick';
 
 type Row = 'inc' | 'fix' | 'var';
 interface PlanMonth { month: string; auto: Record<Row, number>; edited: Record<Row, boolean>; inc: number; fix: number; var: number; spc: number; save: number }
-interface PlanData { year: string; months: PlanMonth[] }
+interface PlanData { year: string; months: PlanMonth[]; basis?: string; avgMonths?: number }
 
 /** 러프하게: 10만 원 단위로 반올림해서 '620만' */
 export const roughMan = (n: number) => {
@@ -18,8 +19,8 @@ export const roughMan = (n: number) => {
 };
 
 export function Plan({ boot, onError, toast, go, tab, initial, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; tab: 'note' | 'plan'; initial?: { year?: string; month?: string; category?: string }; reloadBoot?: () => void }) {
-  const nextYear = String(Number(boot.today.slice(0, 4)) + (Number(boot.today.slice(5, 7)) >= 11 ? 1 : 0));
-  const year = initial?.year ?? nextYear;
+  // 처음 열면 올해 (선생님 2026-11-19: 11월부터 내년이 열리던 것 → 올해로)
+  const year = initial?.year ?? boot.today.slice(0, 4);
   return (
     <div>
       <div className="tabs">
@@ -41,6 +42,14 @@ export function MoneyPlan({ year, go, onError, toast, embedded = false }: { year
   useEffect(() => void load(), [load]);
   if (!d) return <p className="muted">불러오는 중…</p>;
   const sum = (k: keyof PlanMonth) => d.months.reduce((n, m) => n + (m[k] as number), 0);
+  const setBasis = async (basis: string) => {
+    try {
+      await api('/plan/basis', { basis });
+      load();
+    } catch (e) {
+      onError(e);
+    }
+  };
   const set = async (month: string, row: Row, man: string | null) => {
     try {
       setD(await api<PlanData>('/plan/cell', { month, row, amount: man === null ? null : Math.round(Number(man.replace(/[^\d.-]/g, '')) * 10000) }));
@@ -63,13 +72,28 @@ export function MoneyPlan({ year, go, onError, toast, embedded = false }: { year
             ◀
           </button>
         )}
-        {embedded ? <h2 className="sec" style={{ margin: 0 }}>1. {year}년 머니플랜</h2> : <h1>{year}년 머니플랜</h1>}
+        {embedded ? <h2 className="sec" style={{ margin: 0 }}>1. {year}년 머니플랜</h2> : <h1><YearPick year={year} onPick={(y) => go(`#/plan?tab=plan&year=${y}`)} />년 머니플랜</h1>}
         {!embedded && (
           <button className="btn sm" onClick={() => go(`#/plan?tab=plan&year=${Number(year) + 1}`)}>
             ▶
           </button>
         )}
         <span className="muted">단위: 만 원 (대략)</span>
+        <span className="spacer" />
+        <span className="muted small">자동 값 기준</span>
+        <span className="seg">
+          {(
+            [
+              ['avg12', '최근 12달 평균'],
+              ['avg3', '최근 3달 평균'],
+              ['budget', '예산'],
+            ] as const
+          ).map(([k, n]) => (
+            <button key={k} className={(d.basis ?? 'avg12') === k ? 'on' : ''} onClick={() => setBasis(k)}>
+              {n}
+            </button>
+          ))}
+        </span>
       </div>
       <div className="tiles three">
         <div className="tile">
@@ -134,7 +158,8 @@ export function MoneyPlan({ year, go, onError, toast, embedded = false }: { year
           <summary>머니플랜이란?</summary>
           <ul>
             <li>목표 저축 = 수입 − 고정 − 변동 − 특별지출</li>
-            <li>자동 입력: 수입 = 최근 3개월 평균, 고정·변동 = 카테고리 예산, 특별지출 = 머니노트</li>
+            <li>자동 입력: 수입·고정·변동 = 고른 기준(최근 12달·3달 실제 평균 또는 예산, 수입은 예산 기준일 때 12달 평균), 특별지출 = 머니노트</li>
+            <li>평균: 이번 달 제외, 기록이 있는 달만, 머니노트 카테고리는 특별지출로 따로</li>
             <li>칸 선택 시 수정 (수정한 칸은 초록색, 비우면 자동 값으로 복귀)</li>
           </ul>
         </details>
@@ -160,3 +185,4 @@ function PlanCell({ value, edited, auto, onSave }: { value: number; edited: bool
   };
   return <input className="text sm" style={{ width: 70, textAlign: 'right' }} autoFocus value={v} placeholder="자동" onChange={(e) => setV(e.target.value.replace(/[^\d.]/g, ''))} onBlur={() => done(true)} onKeyDown={(e) => (e.key === 'Enter' ? done(true) : e.key === 'Escape' ? done(false) : null)} />;
 }
+

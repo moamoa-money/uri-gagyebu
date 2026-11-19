@@ -7,6 +7,7 @@ import type { Boot, Toast } from './data';
 import type { Category } from '../shared/types';
 import { Icon } from './Icon';
 import { NewBadge } from './NewBadge';
+import { YearPick } from './YearPick';
 
 interface Note {
   id: string;
@@ -209,7 +210,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
               ◀
             </button>
           )}
-          {embedded ? <h2 className="sec" style={{ margin: 0 }}>2. {year}년 머니노트</h2> : <h1>{year}년 머니노트</h1>}
+          {embedded ? <h2 className="sec" style={{ margin: 0 }}>2. {year}년 머니노트</h2> : <h1><YearPick year={year} onPick={setYear} />년 머니노트</h1>}
           {!embedded && (
             <button className="btn sm" onClick={() => setYear(String(Number(year) + 1))}>
               ▶

@@ -1015,11 +1015,32 @@ export async function planView(env: Env, year: string) {
     all(env, 'SELECT month, row, amount FROM money_plan WHERE month >= ? AND month <= ?', [from, to], (r) => ({ m: String(r.month), row: String(r.row), a: Number(r.amount) })),
   ]);
   const bMap = new Map(budgets.map((b) => [`${b.c}|${b.m}`, b.a]));
-  // 수입은 예산이 아니라 최근 석 달(이번 달 빼고) 실제 평균으로 — 러프한 계획용 (선생님 결정)
+  // 자동 값 = 최근 12달(이번 달 빼고) 실제 평균 — 러프한 계획용 (선생님 결정 2026-11-18: 3달 → 12달, 고정·변동도)
+  //  · 기록이 있는 달만으로 나눔 (쓰기 시작한 지 12달이 안 됐어도 맞게)
+  //  · 고정·변동 평균에서 머니노트 카테고리는 뺌(특별지출 줄에서 따로 셈). '더하기' 머니노트 카테고리는 평소 몫으로 기본 예산을 더함
+  //  · 기준을 '예산'으로 바꾸면 고정·변동은 예전처럼 카테고리 예산에서 (settings plan_basis)
+  const b0 = await getSetting(env, 'plan_basis');
+  const basis: 'avg12' | 'avg3' | 'budget' = b0 === 'budget' || b0 === 'avg3' ? b0 : 'avg12';
+  const span = basis === 'avg3' ? 3 : 12; // 예산 기준이어도 수입은 12달 평균
   const thisM = monthOf(today());
-  const incFrom = addMonths(thisM, -3);
-  const incTx = await all(env, 'SELECT * FROM transactions WHERE date >= ? AND date < ?', [`${incFrom}-01`, `${thisM}-01`], toTx);
-  const incAvg = Math.round([0, 1, 2].reduce((n, i) => n + monthTotals(incTx, cats, addMonths(incFrom, i)).inc, 0) / 3);
+  const avgFrom = addMonths(thisM, -span);
+  const winTx = await all(env, 'SELECT * FROM transactions WHERE date >= ? AND date < ?', [`${avgFrom}-01`, `${thisM}-01`], toTx);
+  const catById = new Map(cats.map((c) => [c.id, c]));
+  const winMonths = Array.from({ length: span }, (_, i) => addMonths(avgFrom, i)).filter((m) => winTx.some((t) => t.date.startsWith(m)));
+  const nM = winMonths.length;
+  const incAvg = nM ? Math.round(winMonths.reduce((n, m) => n + monthTotals(winTx, cats, m).inc, 0) / nM) : 0;
+  const spendAvg = { fix: 0, var: 0 };
+  if (nM) {
+    for (const t of winTx) {
+      const c = t.categoryId ? catById.get(t.categoryId) : undefined;
+      if (!c || c.moneynote || (c.grp !== 'fix' && c.grp !== 'var')) continue;
+      spendAvg[c.grp] += t.amount;
+    }
+    spendAvg.fix = Math.round(spendAvg.fix / nM);
+    spendAvg.var = Math.round(spendAvg.var / nM);
+    for (const c of cats) if (!c.hidden && c.moneynote && c.moneynoteAdd && (c.grp === 'fix' || c.grp === 'var')) spendAvg[c.grp] += c.budget;
+  }
+  const useAvg = basis !== 'budget' && nM > 0;
   const nMap = new Map(notes.map((n) => [`${n.c}|${n.m}`, n.s]));
   const months = Array.from({ length: 12 }, (_, i) => {
     const m = `${year}-${String(i + 1).padStart(2, '0')}`;
@@ -1035,11 +1056,22 @@ export async function planView(env: Env, year: string) {
       if (c.grp === 'fix' || c.grp === 'var') auto[c.grp] += base;
     }
     auto.inc = incAvg;
+    if (useAvg) {
+      auto.fix = spendAvg.fix;
+      auto.var = spendAvg.var;
+    }
     const pick = (row: 'inc' | 'fix' | 'var') => over.find((o) => o.m === m && o.row === row)?.a;
     const v = { inc: pick('inc') ?? auto.inc, fix: pick('fix') ?? auto.fix, var: pick('var') ?? auto.var };
     return { month: m, auto, edited: { inc: pick('inc') !== undefined, fix: pick('fix') !== undefined, var: pick('var') !== undefined }, ...v, spc, save: v.inc - v.fix - v.var - spc };
   });
-  return { year, months };
+  return { year, months, basis, avgMonths: nM, avgFrom: winMonths[0] ?? null, avgTo: winMonths[nM - 1] ?? null };
+}
+
+export async function setPlanBasis(env: Env, user: User, basis: unknown) {
+  const b = basis === 'budget' || basis === 'avg3' ? basis : 'avg12';
+  await setSetting(env, 'plan_basis', b);
+  await log(env, user.name, 'plan.basis', { b });
+  return { ok: true };
 }
 
 export async function setPlanCell(env: Env, user: User, input: { month?: unknown; row?: unknown; amount?: unknown }) {

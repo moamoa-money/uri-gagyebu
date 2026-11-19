@@ -117,6 +117,19 @@ export function Home({ boot, onError, toast, go }: { boot: Boot; onError: (e: un
       {/* 위아래 줄을 맞춘 바둑판: [다짐·요약칸 | 연간 리포트] / [월별 요약… | 무지출·빠른 입력] */}
       <div className="home-grid">
       <div className="hg-a">
+        {pledges.length === 0 && (
+          <div className="card home-pl home-pl-empty">
+            <b className="withico">
+              <UiIcon name="pin" /> {Number(month.slice(5))}월 다짐
+            </b>
+            <p className="muted">이번 달 다짐이 아직 없습니다. 지난달 월말 결산에서 이번 달 다짐을 적을 수 있습니다.</p>
+            <div>
+              <button className="btn sm" onClick={() => go(`#/review?month=${addMonths(month, -1)}`)}>
+                다짐 적으러 가기 ▸
+              </button>
+            </div>
+          </div>
+        )}
         {pledges.length > 0 && (
           <div className="card home-pl">
             <b className="withico">

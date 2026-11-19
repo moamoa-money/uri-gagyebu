@@ -249,8 +249,8 @@ export function Transactions({ boot, onError, toast, initial }: { boot: Boot; on
             <thead>
               <tr>
                 <th>날짜</th>
-                <th>내역</th>
                 <th>카테고리</th>
+                <th>내역</th>
                 <th>결제·출금</th>
                 <th>입금</th>
                 <th className="r">금액</th>
@@ -271,11 +271,11 @@ export function Transactions({ boot, onError, toast, initial }: { boot: Boot; on
                 return (<Fragment key={t.id}>{head}
                   <tr key={t.id} className={`click ${editing !== 'new' && editing?.id === t.id ? 'sel' : ''}`} onClick={() => setEditing(t)}>
                     <td>{shortDate(t.date)}</td>
+                    <td>{c ? <span className="withico"><Icon name={c.icon} /> {c.name}</span> : t.fromAccount && t.toAccount ? <span className="tag">이체</span> : <span className="tag bad" title="카테고리가 없어요. 눌러서 카테고리를 골라 주세요">미분류</span>}</td>
                     <td>
                       {t.title}
                       {t.unnecessary && <span className="tag bad">불필요</span>}
                     </td>
-                    <td>{c ? <span className="withico"><Icon name={c.icon} /> {c.name}</span> : t.fromAccount && t.toAccount ? <span className="tag">이체</span> : <span className="tag bad" title="카테고리가 없어요. 눌러서 카테고리를 골라 주세요">미분류</span>}</td>
                     <td className="muted">{accName(t.fromAccount) || '—'}</td>
                     <td className="muted">{accName(t.toAccount) || '—'}</td>
                     <td className={`r ${c?.grp === 'inc' ? 'good' : ''}`}>{won(t.amount)}</td>

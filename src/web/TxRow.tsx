@@ -82,9 +82,6 @@ export function TxRow({ boot, onSaved, onError }: { boot: Boot; onSaved: () => v
         <DateInput className="cell" value={date} onChange={setDate} />
       </td>
       <td>
-        <input ref={titleRef} className="cell" placeholder="내역" value={title} onChange={(e) => setTitle(e.target.value)} />
-      </td>
-      <td>
         <div className="cellpair">
           <select
             className="cell"
@@ -109,6 +106,9 @@ export function TxRow({ boot, onSaved, onError }: { boot: Boot; onSaved: () => v
             ))}
           </select>
         </div>
+      </td>
+      <td>
+        <input ref={titleRef} className="cell" placeholder="내역" value={title} onChange={(e) => setTitle(e.target.value)} />
       </td>
       <td>{accSelect(from, setFrom, fromOn, kind !== 'inc')}</td>
       <td>{accSelect(to, setTo, toOn, kind === 'inc' || kind === 'transfer')}</td>
@@ -136,7 +136,8 @@ export function TxRow({ boot, onSaved, onError }: { boot: Boot; onSaved: () => v
     {suggest.length > 0 && (
       <tr className="newrow">
         <td />
-        <td colSpan={8}>
+        <td />
+        <td colSpan={6}>
           <ItemChips titles={suggest} current={title} onPick={(t) => (setTitle(t), titleRef.current?.focus())} />
         </td>
       </tr>
