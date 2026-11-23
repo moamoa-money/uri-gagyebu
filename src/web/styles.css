@@ -763,3 +763,21 @@ html[data-theme='charcoal'] { --accent: #474c54; --soft: #e7e8ea; --tint: #f4f5f
 .yp-pop button.on { background: var(--accent); color: #fff; }
 .home-pl-empty p { margin: 10px 0 10px; }
 .hg-a > .home-pl-empty { justify-content: center; }
+/* 대출 상환표: 연결 줄·쓰는 법 */
+.loan-linked { margin-top: 8px; gap: 10px; align-items: center; }
+.loan-help { margin: 0 0 10px; }
+details.help ol { margin: 6px 0 0; padding-left: 20px; line-height: 1.7; }
+details.help p { margin: 6px 0 0; line-height: 1.7; }
+/* 결산 표 머니노트 작은 창 */
+.notepop { position: relative; display: inline-block; }
+.notepop-box { position: fixed; z-index: 200; width: 320px; background: #fff; border-radius: 12px; box-shadow: 0 8px 28px rgba(40, 30, 20, 0.18); padding: 12px 14px; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+.notepop-box .row { gap: 6px; align-items: center; flex-wrap: nowrap; }
+.notepop-box input.text.sm { width: 100px; text-align: right; }
+.notepop-box .np-title { flex: 1; min-width: 0; text-align: left !important; width: auto !important; }
+.notepop-box .np-sum { justify-content: flex-end; flex-wrap: wrap !important; text-align: right; border-top: 1px solid #eee; padding-top: 6px; line-height: 1.6; }
+.notepop-box .np-move { font-size: 13px; padding: 3px 4px; border: 1px solid #ddd; border-radius: 6px; background: #fff; }
+.notepop-box .np-del { padding: 3px 8px; }
+.notepop-box { width: 400px; }
+/* 거래 표 날짜 정렬 버튼 */
+.sortbtn { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
+.sortbtn:hover { color: var(--accent); }

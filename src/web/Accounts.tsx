@@ -220,8 +220,23 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
                   const n = parseSignedAmount(v);
                   setStartText(n === null ? (/^\s*[-−]/.test(v) ? '-' : '') : (n < 0 ? '-' : '') + won(Math.abs(n)));
                 }} placeholder="0" />
+              {(edit.kind === '대출' || edit.kind === '카드') && (parseSignedAmount(startText) ?? 0) > 0 && (
+                <>
+                  <label />
+                  <span className="warn small">{edit.kind}는 갚을 돈이라 앞에 - 를 붙여요. 예: -{won(parseSignedAmount(startText) ?? 0)}</span>
+                </>
+              )}
               <label />
-              <span className="muted small">카드처럼 갚을 돈이 남아 있으면 앞에 - 를 붙여요. 예: -120,000</span>
+              <details className="help">
+                <summary>시작 잔액이란?</summary>
+                <ul>
+                  <li>이 통장을 가계부에 처음 넣는 날의 잔액이에요. 은행 앱에 보이는 금액을 넣어요.</li>
+                  <li>
+                    <b>카드·대출·마이너스통장</b>은 갚을 돈이라 앞에 <b>-</b> 를 붙여요. 예) 학자금 대출 188만 원 → -1,880,000
+                  </li>
+                  <li>나중에 잔액이 은행과 다르면 아래 '지금 실제 잔액'에 은행 금액을 넣고 맞추면 돼요.</li>
+                </ul>
+              </details>
               {edit.id && edit.balance !== undefined && (
                 <>
                   <label style={{ alignSelf: 'start', paddingTop: 10 }}>지금 실제 잔액</label>

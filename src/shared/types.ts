@@ -47,6 +47,7 @@ export interface Tx {
   toAccount: string | null;
   memo: string;
   unnecessary: boolean;
+  oneSide?: boolean; // 한쪽 이체(입금만·출금만)
   recurringId: string | null;
   createdBy: string | null;
 }

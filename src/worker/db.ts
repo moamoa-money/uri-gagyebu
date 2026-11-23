@@ -62,6 +62,7 @@ export const toTx = (r: Row): Tx => ({
   toAccount: strOrNull(r.to_account),
   memo: str(r.memo),
   unnecessary: num(r.unnecessary) !== 0,
+  oneSide: num(r.one_side) === 1,
   recurringId: strOrNull(r.recurring_id),
   createdBy: strOrNull(r.created_by),
 });

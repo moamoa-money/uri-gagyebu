@@ -22,6 +22,17 @@ export function LoanSchedules({ boot, onError, toast }: { boot: Boot; onError: (
   if (!d || !d.feature) return null;
   return (
     <>
+      <details className="help loan-help">
+        <summary>대출 상환표 쓰는 법</summary>
+        <ul>
+          <li>대상: 은행 상환계획표가 있는 대출(주담대 등) — 통장·투자에 분류 '대출' 통장 필요</li>
+          <li>① 상환표 붙여넣기: 은행 표 복사 → 붙여넣기 → 넣기</li>
+          <li>② 예산 연결: 시작 달 + 원금·이자 카테고리 선택 → 연결</li>
+          <li>③ 고정지출 등록(설정 › 고정지출): '한꺼번에 넣기' + 상환표 연결 → 달마다 원금·이자 자동 금액</li>
+          <li>표의 '앱 잔액': 거래로 계산한 대출 잔액 — 은행 남은 대출금과 비교(딱 맞음/차이)</li>
+          <li>표 칸 선택 시 바로 수정</li>
+        </ul>
+      </details>
       {d.loans.map((l) => (
         <LoanCard key={l.account.id} l={l} boot={boot} setD={setD} onError={onError} toast={toast} />
       ))}
@@ -74,7 +85,7 @@ function LoanCard({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
             {lastPast.appBalance === lastPast.balance ? <b className="good">딱 맞음</b> : <b className="bad">{won(Math.abs(lastPast.appBalance - lastPast.balance))}원 차이</b>}
           </span>
         )}
-        {l.rows.length === 0 && !open && <span className="muted small">상환표 없음 — 은행 상환계획표가 있는 대출만 넣으면 돼요</span>}
+        {l.rows.length === 0 && !open && <span className="muted small">상환표 없음</span>}
         <span className="spacer" />
         <button className="btn sm" onClick={() => setOpen(!open)}>
           {open ? '닫기' : '상환표 붙여넣기'}
@@ -83,7 +94,14 @@ function LoanCard({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
 
       {open && (
         <div className="loan-paste">
-          <p className="muted small">은행 상환계획표(엑셀·Numbers)에서 날짜·원금·이자·남은 대출금 칸을 통째로 복사해 아래에 붙여 넣으세요(⌘V). 날짜가 옆으로 가는 표도, 아래로 가는 표도 읽어요. 같은 달은 새 값으로 바뀌어요.</p>
+          <details className="help">
+            <summary>붙여넣기란?</summary>
+            <ul>
+              <li>은행 상환계획표(엑셀·Numbers)의 날짜·원금·이자·남은 대출금 칸 통째로 복사 → 붙여넣기(⌘V)</li>
+              <li>날짜가 가로·세로인 표 모두 인식</li>
+              <li>같은 달: 새 값으로 교체</li>
+            </ul>
+          </details>
           <textarea className="text" rows={4} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder="여기에 붙여넣기" />
           {paste.trim() && (
             <div className="row" style={{ marginTop: 6 }}>
@@ -106,9 +124,9 @@ function LoanCard({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
 
       {l.rows.length > 0 && (
         <>
-          {off.length > 0 && (
+          {off.some((x) => Math.abs(x.delta) > 1) && (
             <p className="warn small">
-              상환표와 어긋나기 시작한 달: {off.map((x) => `${Number(x.r.month.slice(5))}월 ${x.delta > 0 ? '+' : '−'}${won(Math.abs(x.delta))}원`).join(' · ')} — 그달 '{l.account.name} 상환' 거래 금액이 상환표 원금과 같은지 봐 주세요. (1원은 은행 표 자체의 반올림일 수 있어요)
+              상환표와 어긋나기 시작한 달: {off.map((x) => `${Number(x.r.month.slice(5))}월 ${x.delta > 0 ? '+' : '−'}${won(Math.abs(x.delta))}원`).join(' · ')} · 확인: 그달 '{l.account.name} 상환' 거래 금액 = 상환표 원금 (1원은 은행 반올림일 수 있음)
             </p>
           )}
           <div style={{ overflowX: 'auto' }}>
@@ -151,7 +169,7 @@ function LoanCard({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
           <LinkForm l={l} boot={boot} setD={setD} onError={onError} toast={toast} />
           {boot.recurring.some((r) => r.loanAccount === l.account.id) && (
             <p className="small loan-to-fixed">
-              이 상환표의 원금·이자는 <b>고정지출 '한꺼번에 넣기'</b>에 그달 금액 그대로 들어가요 ({boot.recurring.filter((r) => r.loanAccount === l.account.id).map((r) => r.title).join(' · ')}).{' '}
+              연결된 고정지출: {boot.recurring.filter((r) => r.active && r.loanAccount === l.account.id).map((r) => `${r.title}(${r.mode === 'batch' ? '체크해서 넣기' : '매월 자동'})`).join(' · ')} — 그달 상환표 금액으로 들어감.{' '}
               <a className="click" href="#/tx">
                 거래 화면에서 고정지출 넣기 →
               </a>
@@ -171,8 +189,10 @@ function LinkForm({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
   const [pc, setPc] = useState(l.link?.principalCategory ?? guess(/상환/, ['sav', 'fix']));
   const [ic, setIc] = useState(l.link?.interestCategory ?? guess(/이자/, ['fix', 'var']));
   const [start, setStart] = useState(l.link?.startMonth ?? nextMonth);
-  const [pBase, setPBase] = useState('');
-  const [iBase, setIBase] = useState('');
+  const [editBase, setEditBase] = useState(false);
+  const budgetOf = (id: string) => won(cats.find((c) => c.id === id)?.budget ?? 0);
+  const [pBase, setPBase] = useState(() => budgetOf(l.link?.principalCategory ?? guess(/상환/, ['sav', 'fix'])));
+  const [iBase, setIBase] = useState(() => budgetOf(l.link?.interestCategory ?? guess(/이자/, ['fix', 'var'])));
   const [open, setOpen] = useState(!l.link?.startMonth);
   const row = l.rows.find((r) => r.month === start);
   async function save() {
@@ -187,23 +207,25 @@ function LinkForm({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
   const name = (id: string | null) => cats.find((c) => c.id === id)?.name ?? '없음';
   if (!open)
     return (
-      <p className="small" style={{ marginTop: 8 }}>
-        예산 연결: <b>{l.link?.startMonth ? `${Number(l.link.startMonth.slice(5))}월(${l.link.startMonth.slice(0, 4)})부터` : '안 함'}</b> 원금 → {name(l.link?.principalCategory ?? null)}, 이자 → {name(l.link?.interestCategory ?? null)} 예산에 그달 상환표 금액을 더해요.{' '}
-        <a className="click" onClick={() => setOpen(true)}>
+      <div className="row small loan-linked">
+        <span>
+          예산 연결: <b>{l.link?.startMonth ? `${l.link.startMonth.slice(0, 4)}년 ${Number(l.link.startMonth.slice(5))}월부터` : '안 함'}</b> · 원금 → {name(l.link?.principalCategory ?? null)} · 이자 → {name(l.link?.interestCategory ?? null)}
+        </span>
+        <button className="btn sm" onClick={() => setOpen(true)}>
           고치기
-        </a>
-      </p>
+        </button>
+      </div>
     );
   return (
     <div className="loan-link">
-      <b>예산에 상환표 금액 더하기</b>
-      <p className="muted small">고른 달부터 그달 예산 = (대출 말고 다른 몫) + 상환표 금액. 그 전 달 결산은 그대로예요. 다른 몫은 예: 상환 카테고리에 같이 넣는 보험대출 50만 원.</p>
+      <b>{Number(start.slice(5))}월부터 예산에 자동으로 더하기</b>
+
       <div className="vform">
         <label>시작 달</label>
         <input className="text" type="month" value={start} onChange={(e) => setStart(e.target.value)} />
         <label>원금 →</label>
         <span className="row">
-          <select className="text" value={pc} onChange={(e) => setPc(e.target.value)}>
+          <select className="text" value={pc} onChange={(e) => (setPc(e.target.value), setPBase(budgetOf(e.target.value)))}>
             <option value="">(더하지 않음)</option>
             {cats.map((c) => (
               <option key={c.id} value={c.id}>
@@ -211,12 +233,31 @@ function LinkForm({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
               </option>
             ))}
           </select>
-          <span className="muted small">대출 말고 다른 몫</span>
-          <input className="text" style={{ width: 120 }} inputMode="numeric" value={pBase} onChange={(e) => setPBase(e.target.value)} placeholder="예: 500,000" />
         </span>
+        {pc && (
+          <>
+            <label />
+            <span className="row small loan-formula">
+              {editBase ? (
+                <>
+                  원래 예산
+                  <input className="text sm" style={{ width: 110 }} inputMode="numeric" value={pBase} onChange={(e) => { const n = parseAmount(e.target.value); setPBase(n === null ? '' : won(n)); }} placeholder="0" />
+                </>
+              ) : (
+                <span>{name(pc)} {won(parseAmount(pBase) ?? 0)}</span>
+              )}
+              {row && (
+                <>
+                  → <b>{won((parseAmount(pBase) ?? 0) + row.principal)}원</b>
+                  <span className="muted">(+ {l.account.name} 원금 {won(row.principal)})</span>
+                </>
+              )}
+            </span>
+          </>
+        )}
         <label>이자 →</label>
         <span className="row">
-          <select className="text" value={ic} onChange={(e) => setIc(e.target.value)}>
+          <select className="text" value={ic} onChange={(e) => (setIc(e.target.value), setIBase(budgetOf(e.target.value)))}>
             <option value="">(더하지 않음)</option>
             {cats.map((c) => (
               <option key={c.id} value={c.id}>
@@ -224,24 +265,44 @@ function LinkForm({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
               </option>
             ))}
           </select>
-          <span className="muted small">대출 말고 다른 몫</span>
-          <input className="text" style={{ width: 120 }} inputMode="numeric" value={iBase} onChange={(e) => setIBase(e.target.value)} placeholder="예: 50,000" />
         </span>
-        <label />
-        <span className="small">
-          {row ? (
-            <>
-              {Number(start.slice(5))}월 예산 미리보기: {name(pc)} = {pBase ? won(parseAmount(pBase) ?? 0) : '(지금 예산)'} + {won(row.principal)} · {name(ic)} = {iBase ? won(parseAmount(iBase) ?? 0) : '(지금 예산)'} + {won(row.interest)}
-            </>
-          ) : (
-            <span className="warn">그 달 상환표가 없어요</span>
-          )}
-        </span>
+        {ic && (
+          <>
+            <label />
+            <span className="row small loan-formula">
+              {editBase ? (
+                <>
+                  원래 예산
+                  <input className="text sm" style={{ width: 110 }} inputMode="numeric" value={iBase} onChange={(e) => { const n = parseAmount(e.target.value); setIBase(n === null ? '' : won(n)); }} placeholder="0" />
+                </>
+              ) : (
+                <span>{name(ic)} {won(parseAmount(iBase) ?? 0)}</span>
+              )}
+              {row && (
+                <>
+                  → <b>{won((parseAmount(iBase) ?? 0) + row.interest)}원</b>
+                  <span className="muted">(+ {l.account.name} 이자 {won(row.interest)})</span>
+                </>
+              )}
+            </span>
+          </>
+        )}
+        {!row && (
+          <>
+            <label />
+            <span className="warn small">그 달 상환표 없음</span>
+          </>
+        )}
         <label />
         <span className="row">
           <button className="btn main" onClick={save}>
             연결
           </button>
+          {!editBase && (
+            <button className="btn" onClick={() => setEditBase(true)}>
+              원래 예산 고치기
+            </button>
+          )}
           {l.link?.startMonth && (
             <button className="btn" onClick={() => setOpen(false)}>
               취소
@@ -249,7 +310,56 @@ function LinkForm({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
           )}
         </span>
       </div>
-      <p className="muted small">'다른 몫'을 비워 두면 지금 예산에 그대로 더해져요 — 지금 예산에 주담대 몫이 이미 들어 있으면 두 번 세니까 꼭 다른 몫만 적어 주세요.</p>
+      {(() => {
+        const m = Number(start.slice(5));
+        const after = l.rows.find((r) => r.month === addMonths(start, 1));
+        const ln = l.account.name;
+        return (
+          <>
+            <details className="help">
+              <summary>예산에 넣는 법</summary>
+              <p>
+                예를 들어 <b>{m}월부터</b> 예산에 넣고 싶다면
+              </p>
+              <ol>
+                <li>
+                  시작 달을 <b>{m}월</b>로 고르고
+                </li>
+                <li>
+                  <b>[연결]</b>을 누르면
+                </li>
+                <li>
+                  {m}월 예산에 이렇게 더해져요.
+                  {row && (
+                    <>
+                      <br />· 원금 {won(row.principal)} → {name(pc)}
+                      <br />· 이자 {won(row.interest)} → {name(ic)}
+                    </>
+                  )}
+                </li>
+                <li>{m === 12 ? 1 : m + 1}월부터는 그달 상환표 금액으로 저절로 바뀌어요.</li>
+              </ol>
+            </details>
+            <details className="help">
+              <summary>같은 카테고리에 다른 대출이 있다면</summary>
+              <p>
+                예를 들어 {name(pc)} 카테고리에 <b>다른 대출 50만 원</b>이 이미 있다면
+                <br />
+                {after ? `${Number(after.month.slice(5))}월` : `${m}월`} {name(pc)} 예산 = 50만 원 + {ln} 원금 {won((after ?? row)?.principal ?? 0)}원 ={' '}
+                <b>{won(500000 + ((after ?? row)?.principal ?? 0))}원</b>
+              </p>
+            </details>
+            <details className="help">
+              <summary>왜 원금은 저축, 이자는 고정지출인가요?</summary>
+              <p>
+                원금은 빚이 줄어드는 만큼 내 자산이 늘어나는 돈이라 <b>저축</b>,
+                <br />
+                이자는 빌린 값으로 그냥 나가는 돈이라 <b>고정지출</b>이에요.
+              </p>
+            </details>
+          </>
+        );
+      })()}
     </div>
   );
 }

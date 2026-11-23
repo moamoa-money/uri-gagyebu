@@ -124,7 +124,14 @@ export function BatchFixed({ boot, onError, toast, onSaved }: { boot: Boot; onEr
               </button>
             </div>
           )}
-          <p className="muted small">금액은 지난번에 넣은 금액이 미리 채워져요 — 이번 달 바뀐 것만 고치면 돼요. 빼고 싶은 항목은 체크를 끄세요. 목록은 설정 → 고정지출에서 고쳐요.</p>
+          <details className="help">
+            <summary>체크해서 넣기란?</summary>
+            <ul>
+              <li>빠져나간 고정지출에 체크 → 금액 확인 → 날짜 선택 → 한 번에 거래 등록</li>
+              <li>금액: 설정에 등록한 금액이 미리 채워짐 (이번 달 다르면 수정, 지난번 금액은 옆에 표시)</li>
+              <li>목록 수정: 설정 › 고정지출 등록</li>
+            </ul>
+          </details>
         </>
       )}
     </div>

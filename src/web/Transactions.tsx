@@ -29,6 +29,9 @@ export function Transactions({ boot, onError, toast, initial }: { boot: Boot; on
   const [byWeek, setByWeek] = useState(() => localStorage.getItem('gb_byweek') !== '0');
   useEffect(() => localStorage.setItem('gb_byweek', byWeek ? '1' : '0'), [byWeek]);
   const [opened, setOpened] = useState<Record<string, boolean>>({});
+  // 정렬: 최신순(기본) / 오래된순 — 이 브라우저에 기억
+  const [oldFirst, setOldFirst] = useState(() => localStorage.getItem('gb_tx_old_first') === '1');
+  useEffect(() => localStorage.setItem('gb_tx_old_first', oldFirst ? '1' : '0'), [oldFirst]);
   const [showMore, setShowMore] = useState(false);
 
   const range = useMemo(() => {
@@ -248,7 +251,11 @@ export function Transactions({ boot, onError, toast, initial }: { boot: Boot; on
           <table className="list tx">
             <thead>
               <tr>
-                <th>날짜</th>
+                <th>
+                  <button className="sortbtn" title="정렬 바꾸기" onClick={() => setOldFirst(!oldFirst)}>
+                    날짜 {oldFirst ? '↑ 오래된순' : '↓ 최신순'}
+                  </button>
+                </th>
                 <th>카테고리</th>
                 <th>내역</th>
                 <th>결제·출금</th>
@@ -260,18 +267,18 @@ export function Transactions({ boot, onError, toast, initial }: { boot: Boot; on
             </thead>
             <tbody>
               <TxRow boot={boot} onError={onError} onSaved={() => (toast('추가했어요'), load())} />
-              {list?.rows.map((t, i) => {
+              {list && (oldFirst ? [...list.rows].reverse() : list.rows).map((t, i, rows) => {
                 const c = cat(t.categoryId);
                 const wk = `${t.date.slice(0, 7)}-${weekNo(t.date)}`;
-                const newWeek = byWeek && (i === 0 || `${list.rows[i - 1].date.slice(0, 7)}-${weekNo(list.rows[i - 1].date)}` !== wk);
+                const newWeek = byWeek && (i === 0 || `${rows[i - 1].date.slice(0, 7)}-${weekNo(rows[i - 1].date)}` !== wk);
                 const firstWeek = `${list.rows[0].date.slice(0, 7)}-${weekNo(list.rows[0].date)}`;
                 const isOpen = !byWeek || (opened[wk] ?? (weeksIn(list.rows) <= 2 || wk === firstWeek));
-                const head = newWeek ? weekHead(list.rows, wk, isOpen) : null;
+                const head = newWeek ? weekHead(rows, wk, isOpen) : null;
                 if (!isOpen) return head;
                 return (<Fragment key={t.id}>{head}
                   <tr key={t.id} className={`click ${editing !== 'new' && editing?.id === t.id ? 'sel' : ''}`} onClick={() => setEditing(t)}>
                     <td>{shortDate(t.date)}</td>
-                    <td>{c ? <span className="withico"><Icon name={c.icon} /> {c.name}</span> : t.fromAccount && t.toAccount ? <span className="tag">이체</span> : <span className="tag bad" title="카테고리가 없어요. 눌러서 카테고리를 골라 주세요">미분류</span>}</td>
+                    <td>{c ? <span className="withico"><Icon name={c.icon} /> {c.name}</span> : t.fromAccount && t.toAccount ? <span className="tag">이체</span> : t.oneSide ? <span className="tag">{t.fromAccount ? '출금' : '입금'}</span> : <span className="tag bad" title="카테고리가 없어요. 눌러서 카테고리를 골라 주세요">미분류</span>}</td>
                     <td>
                       {t.title}
                       {t.unnecessary && <span className="tag bad">불필요</span>}

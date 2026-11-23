@@ -36,7 +36,7 @@ export function TxRow({ boot, onSaved, onError }: { boot: Boot; onSaved: () => v
   const toOn = !isSpending(kind);
   const accSelect = (value: string, set: (v: string) => void, on: boolean, need: boolean) => (
     <select className={`cell ${on ? '' : 'off'}`} disabled={!on} value={on ? value : ''} onChange={(e) => set(e.target.value)}>
-      <option value="">{on ? (need ? '골라 주세요' : '선택') : '—'}</option>
+      <option value="">{on ? (kind === 'transfer' ? '비우면 한쪽만' : need ? '골라 주세요' : '선택') : '—'}</option>
       {accounts.map((a) => (
         <option key={a.id} value={a.id}>
           {a.name}

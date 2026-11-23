@@ -53,6 +53,15 @@ export async function setup(env: Env, input: { name: string; password: string; h
 
 // ---------- 고정지출 자동 입력 ----------
 
+/** 상환표와 연결된 고정지출이면 그달 상환표 원금·이자, 아니면 등록 금액 */
+async function loanAmountFor(env: Env, r: { amount: number; loanAccount?: string | null; loanPart?: string | null }, month: string): Promise<number> {
+  if (!r.loanAccount || !r.loanPart) return r.amount;
+  if ((await getSetting(env, 'feature_loan')) !== '1') return r.amount;
+  const s = await first(env, 'SELECT principal, interest FROM loan_schedule WHERE account_id = ? AND month = ?', [r.loanAccount, month], (x) => ({ p: Number(x.principal), i: Number(x.interest) }));
+  if (!s) return r.amount;
+  return r.loanPart === 'principal' ? s.p : s.i;
+}
+
 /** 지난번 이후 시작된 달마다 고정 항목 거래를 만든다 (같은 항목·같은 날은 한 번만) */
 export async function runRecurring(env: Env, upToMonth = monthOf(today())) {
   const through = (await getSetting(env, 'recurring_through')) ?? addMonths(upToMonth, -1);
@@ -61,11 +70,12 @@ export async function runRecurring(env: Env, upToMonth = monthOf(today())) {
   let made = 0;
   for (const r of items) {
     for (const date of recurringDates(r, nextMonth(through), upToMonth)) {
+      const amt = await loanAmountFor(env, r, date.slice(0, 7));
       const res = await env.DB.prepare(
         `INSERT OR IGNORE INTO transactions (id, date, title, amount, category_id, from_account, to_account, memo, recurring_id, created_by, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '자동', ?, ?)`,
       )
-        .bind(newId(), date, r.title, r.amount, r.categoryId, r.fromAccount, r.toAccount, r.id, Date.now(), Date.now())
+        .bind(newId(), date, r.title, amt, r.categoryId, r.fromAccount, r.toAccount, r.id, Date.now(), Date.now())
         .run();
       made += res.meta.changes ?? 0;
     }
@@ -221,8 +231,9 @@ export async function listTx(env: Env, query: TxQuery) {
     const real = grps.filter((g) => g !== 'transfer' && g !== 'unc');
     if (real.length) (parts.push(`c.grp IN (${real.map(() => '?').join(',')})`), binds.push(...real));
     // 이체 = 카테고리 없이 양쪽 통장이 다 있는 것, 미분류 = 카테고리도 없고 한쪽 통장만 있는 것(노션에서 옮긴 기록 중 확인 필요)
-    if (grps.includes('transfer')) parts.push('(t.category_id IS NULL AND t.from_account IS NOT NULL AND t.to_account IS NOT NULL)');
-    if (grps.includes('unc')) parts.push('(t.category_id IS NULL AND (t.from_account IS NULL OR t.to_account IS NULL))');
+    // 한쪽 이체(one_side=1, 입금만·출금만)는 이체로 본다
+    if (grps.includes('transfer')) parts.push('(t.category_id IS NULL AND ((t.from_account IS NOT NULL AND t.to_account IS NOT NULL) OR t.one_side = 1))');
+    if (grps.includes('unc')) parts.push('(t.category_id IS NULL AND t.one_side = 0 AND (t.from_account IS NULL OR t.to_account IS NULL))');
     where.push(`(${parts.join(' OR ')})`);
   }
   const sql = `SELECT t.* FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
@@ -251,24 +262,26 @@ export async function saveTx(env: Env, user: User, input: Partial<Tx> & { id?: s
   // 대분류에 맞게 계좌 정리: 지출은 나간 계좌만, 수입은 들어온 계좌만
   if (cat && isSpending(cat.grp)) to = null;
   if (cat && cat.grp === 'inc') from = null;
-  if (!cat && (!from || !to)) throw new UserError('이체는 보내는 통장과 받는 통장을 둘 다 골라 주세요.');
+  if (!cat && !from && !to) throw new UserError('통장을 골라 주세요.');
   if (from && to && from === to) throw new UserError('보내는 통장과 받는 통장이 같아요.');
-  const title = text(input.title, 100) || cat?.name || '이체';
+  // 카테고리 없이 한쪽 통장만 = 입금만·출금만 (수입·지출 아님, 잔액만)
+  const oneSide = !cat && (!from || !to) ? 1 : 0;
+  const title = text(input.title, 100) || cat?.name || (oneSide ? (from ? '출금' : '입금') : '이체');
   const now = Date.now();
   const id = input.id || newId();
   const exists = input.id ? await first(env, 'SELECT id FROM transactions WHERE id = ?', [input.id], (r) => r) : null;
   if (exists) {
     await run(
       env,
-      `UPDATE transactions SET date = ?, title = ?, amount = ?, category_id = ?, from_account = ?, to_account = ?, memo = ?, unnecessary = ?, updated_at = ? WHERE id = ?`,
-      [input.date, title, amount, cat?.id ?? null, from, to, text(input.memo, 500), input.unnecessary ? 1 : 0, now, id],
+      `UPDATE transactions SET date = ?, title = ?, amount = ?, category_id = ?, from_account = ?, to_account = ?, memo = ?, unnecessary = ?, one_side = ?, updated_at = ? WHERE id = ?`,
+      [input.date, title, amount, cat?.id ?? null, from, to, text(input.memo, 500), input.unnecessary ? 1 : 0, oneSide, now, id],
     );
   } else {
     await run(
       env,
-      `INSERT INTO transactions (id, date, title, amount, category_id, from_account, to_account, memo, unnecessary, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.date, title, amount, cat?.id ?? null, from, to, text(input.memo, 500), input.unnecessary ? 1 : 0, user.name, now, now],
+      `INSERT INTO transactions (id, date, title, amount, category_id, from_account, to_account, memo, unnecessary, one_side, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.date, title, amount, cat?.id ?? null, from, to, text(input.memo, 500), input.unnecessary ? 1 : 0, oneSide, user.name, now, now],
     );
   }
   await log(env, user.name, exists ? 'tx.update' : 'tx.create', { id, date: input.date, title, amount });
@@ -285,6 +298,17 @@ export async function deleteTx(env: Env, user: User, id: string) {
 
 // ---------- 이번 달 (홈) ----------
 
+/** 변동지출(머니노트 아닌 것): 그달 예산을 안 정했으면 가장 최근 달 예산을 이어받는다 (선생님 2026-11-23 — 설정에서 변동지출 기본 예산은 안 씀) */
+async function varCarry(env: Env, month: string): Promise<Map<string, number>> {
+  const rows = await all(
+    env,
+    "SELECT b.category_id, b.amount FROM budgets b JOIN categories c ON c.id = b.category_id WHERE c.grp = 'var' AND c.moneynote = 0 AND b.month = (SELECT MAX(b2.month) FROM budgets b2 WHERE b2.category_id = b.category_id AND b2.month < ?)",
+    [month],
+    (r) => [String(r.category_id), Number(r.amount)] as const,
+  );
+  return new Map(rows);
+}
+
 export async function monthView(env: Env, month: string) {
   if (!isMonth(month)) throw new UserError('달은 2026-11 같은 형식이어야 해요.');
   const [categories, txs, budgets, accounts] = await Promise.all([
@@ -294,11 +318,12 @@ export async function monthView(env: Env, month: string) {
     getAccounts(env),
   ]);
   const monthBudget = new Map(budgets.map((b) => [b.categoryId, b.amount]));
+  for (const [cid, amt] of await varCarry(env, month)) if (!monthBudget.has(cid)) monthBudget.set(cid, amt);
   // 특별지출은 그달 머니노트 합계가 예산 (적어 둔 게 없으면 달별 예산 → 기본 예산)
   const notesNow = await moneyNoteSums(env, month);
   // 그달 예산: 머니노트에 적어 둔 게 있으면 그 합계 → 그달 따로 정한 예산 → 기본 월 예산 (계획 없이 간 여행도 기본 예산 안에서 판단)
   const loanAdd = await loanAdds(env, month);
-  const budgetOf = (c: Category) => budgetWithNotes(c, monthBudget.get(c.id), notesNow.get(c.id)) + (loanAdd.get(c.id) ?? 0);
+  const budgetOf = (c: Category) => budgetWithNotes(c, monthBudget.get(c.id), notesNow.get(c.id), month) + (loanAdd.get(c.id) ?? 0);
   const lines = budgetLines(txs, categories, month, budgetOf, 10, accounts);
   const prevLines = new Map(budgetLines(txs, categories, addMonths(month, -1), budgetOf, 10, accounts).map((l) => [l.category.id, l.actual]));
   return {
@@ -531,7 +556,7 @@ export async function saveRecurring(
       await run(
         env,
         `INSERT OR IGNORE INTO transactions (id, date, title, amount, category_id, from_account, to_account, memo, recurring_id, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '자동', ?, ?)`,
-        [newId(), date, title, amount, input.categoryId || null, input.fromAccount || null, input.toAccount || null, id, Date.now(), Date.now()],
+        [newId(), date, title, await loanAmountFor(env, { amount, loanAccount: loanPart ? input.loanAccount : null, loanPart }, m), input.categoryId || null, input.fromAccount || null, input.toAccount || null, id, Date.now(), Date.now()],
       );
   }
   await log(env, user.name, 'recurring.save', { title, amount, day });
@@ -714,7 +739,11 @@ export async function reviewView(env: Env, month: string) {
     all(env, 'SELECT * FROM pledges WHERE month = ? ORDER BY created_at', [next], toPledge),
   ]);
   // 다음 달 예산 (예산 올리기 버튼에서 '지금 얼마'를 보여 주려고)
-  const nextBudgetRows = await all(env, 'SELECT category_id, amount FROM budgets WHERE month = ?', [next], (r) => [String(r.category_id), Number(r.amount)] as const);
+  const nextBudgetRows: (readonly [string, number])[] = await all(env, 'SELECT category_id, amount FROM budgets WHERE month = ?', [next], (r) => [String(r.category_id), Number(r.amount)] as const);
+  {
+    const have = new Set(nextBudgetRows.map((r) => r[0]));
+    for (const [cid, amt] of await varCarry(env, next)) if (!have.has(cid)) nextBudgetRows.push([cid, amt] as const);
+  }
   // 다음 달 머니노트 (특별지출 예산 + 예산 짤 때 옆에 보여 주기)
   const nextNotes = await all(env, 'SELECT * FROM money_notes WHERE month = ? ORDER BY amount DESC', [next], toMoneyNote);
   // 이번 달 머니노트 (세부 항목별 계획 ↔ 실제 비교)
@@ -724,7 +753,7 @@ export async function reviewView(env: Env, month: string) {
   const rowMap = new Map(nextBudgetRows);
   const allCats = await getCategories(env);
   const nextLoan = await loanAdds(env, next);
-  const nextBudgets = allCats.filter((c) => rowMap.has(c.id) || (c.moneynote && nextSums.has(c.id)) || nextLoan.has(c.id)).map((c) => [c.id, budgetWithNotes(c, rowMap.get(c.id), nextSums.get(c.id)) + (nextLoan.get(c.id) ?? 0)] as const);
+  const nextBudgets = allCats.filter((c) => rowMap.has(c.id) || (c.moneynote && nextSums.has(c.id)) || nextLoan.has(c.id)).map((c) => [c.id, budgetWithNotes(c, rowMap.get(c.id), nextSums.get(c.id), next) + (nextLoan.get(c.id) ?? 0)] as const);
   // 결산에서 바꾼 예산(이번 달 바로잡기 / 다음 달 올리기) — 되돌리기 버튼용
   const changedIn = (m: string) =>
     all(
@@ -873,10 +902,15 @@ export async function undoMonthBudget(env: Env, user: User, input: { categoryId?
 /** 그달 예산 정하기: 머니노트 표시가 없으면 그달 예산 → 기본 예산.
  *  머니노트 '바꾸기'(경조사·여행): 적은 달은 머니노트 합계, 아니면 그달 예산 → 기본 예산.
  *  머니노트 '더하기'(보리): (그달 예산 또는 기본 예산) + 머니노트 합계 */
-export function budgetWithNotes(c: Category, monthAmount: number | undefined, noteSum: number | undefined) {
+// 이 달부터 머니노트 '바꾸기' 카테고리 예산 = 머니노트에 적은 것만 (선생님 2026-11-23).
+// 그 전 달(이미 결산한 달)은 예전 방식 그대로 — 노션에서 옮긴 달별 예산 유지
+export const NOTES_ONLY_FROM = '2026-11';
+export function budgetWithNotes(c: Category, monthAmount: number | undefined, noteSum: number | undefined, month?: string) {
   const base = monthAmount ?? c.budget;
-  if (!c.moneynote || noteSum === undefined) return base;
-  return c.moneynoteAdd ? base + noteSum : noteSum;
+  if (!c.moneynote) return base;
+  if (c.moneynoteAdd) return base + (noteSum ?? 0);
+  if (month && month >= NOTES_ONLY_FROM) return noteSum ?? 0;
+  return noteSum === undefined ? base : noteSum;
 }
 
 export interface MoneyNote {
@@ -1131,7 +1165,7 @@ export async function shortRoadmap(env: Env, year: string) {
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
   // 결산과 같은 규칙으로 (예산 = 그달 예산 → 기본 예산, 실제 = 저축 통장끼리 옮긴 돈 뺌)
   const adds = await Promise.all(months.map((m) => loanAdds(env, m)));
-  const perMonth = months.map((m, i) => new Map(budgetLines(txs, cats, m, (c) => budgetWithNotes(c, bMap.get(`${c.id}|${m}`), nMap.get(`${c.id}|${m}`)) + (adds[i].get(c.id) ?? 0), 10, accounts).map((l) => [l.category.id, l])));
+  const perMonth = months.map((m, i) => new Map(budgetLines(txs, cats, m, (c) => budgetWithNotes(c, bMap.get(`${c.id}|${m}`), nMap.get(`${c.id}|${m}`), m) + (adds[i].get(c.id) ?? 0), 10, accounts).map((l) => [l.category.id, l])));
   const rows = cats
     .map((c) => ({
       categoryId: c.id,
@@ -1507,10 +1541,11 @@ export async function batchView(env: Env, month: string) {
   const out = [];
   for (const r of items) {
     const added = await first(env, 'SELECT id, date, amount FROM transactions WHERE recurring_id = ? AND date >= ? AND date <= ? LIMIT 1', [r.id, `${month}-01`, `${month}-31`], (x) => ({ id: String(x.id), date: String(x.date), amount: Number(x.amount) }));
+    // 기본은 설정에 등록한 금액 (선생님 2026-11-19). 지난번 넣은 금액은 옆에 참고로만 보여 줌
     let amount = r.amount;
     let from = '등록 금액';
     const last = await first(env, 'SELECT amount, date FROM transactions WHERE recurring_id = ? AND date < ? ORDER BY date DESC LIMIT 1', [r.id, `${month}-01`], (x) => ({ amount: Number(x.amount), date: String(x.date) }));
-    if (last) (amount = last.amount), (from = `${Number(last.date.slice(5, 7))}월 금액`);
+    if (last && last.amount !== r.amount) from = `등록 금액 · ${Number(last.date.slice(5, 7))}월 ${last.amount.toLocaleString('ko-KR')}`;
     if (loanOn && r.loanAccount && r.loanPart) {
       const s = await first(env, 'SELECT principal, interest FROM loan_schedule WHERE account_id = ? AND month = ?', [r.loanAccount, month], (x) => ({ p: Number(x.principal), i: Number(x.interest) }));
       if (s) (amount = r.loanPart === 'principal' ? s.p : s.i), (from = '상환표');
@@ -1644,7 +1679,7 @@ export async function saveYearNote(env: Env, user: User, input: { year?: unknown
   return { ok: true };
 }
 
-/** 가계부 이름 바꾸기 (예: 다희네 가계부) — 위 메뉴·카페 이미지에 나옴 */
+/** 가계부 이름 바꾸기 (예: 우리집 가계부) — 위 메뉴·카페 이미지에 나옴 */
 export async function setHousehold(env: Env, user: User, name: unknown) {
   const n = text(name, 30);
   if (!n) throw new UserError('가계부 이름을 넣어 주세요.');

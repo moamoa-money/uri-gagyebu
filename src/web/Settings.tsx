@@ -23,7 +23,7 @@ export function Settings({ boot, onError, toast, reloadBoot }: { boot: Boot; onE
         {(
           [
             ['cat', '카테고리', '예산'],
-            ['rec', '고정지출', '매월 자동'],
+            ['rec', '고정지출', '등록'],
             ['family', '가족', '비밀번호'],
             ['feature', '더 쓰는', '기능'],
             ['look', '꾸미기', ''],
@@ -167,7 +167,7 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
             <div className="card" key={g.key}>
               <h3 className="row">
                 <Icon name={GROUP_ICON[g.key]} /> {g.name}{' '}
-                <span className="muted">월 예산 합계 {won(sum)}원</span>
+                {g.key !== 'var' && <span className="muted">월 예산 합계 {won(sum)}원</span>}
                 <span className="spacer" />
                 <button className="btn sm" onClick={() => setEdit({ grp: g.key as Group, name: '', icon: '', budget: 0 })}>
                   ＋ 카테고리
@@ -189,7 +189,7 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                               <span className="tag">머니노트</span> 1년 {won(mnSum(c.id))}원
                             </span>
                           </span>
-                        ) : c.budget ? (
+                        ) : c.grp === 'var' ? null : c.budget ? (
                           `월 ${won(c.budget)}원`
                         ) : (
                           <span className="muted">예산 없음</span>
@@ -234,8 +234,8 @@ function Categories({ boot, onError, toast, reloadBoot }: P) {
                   </button>
                 ))}
               </div>
-              <label>{edit.moneynote && edit.moneynoteAdd ? '매달 기본 예산' : '월 예산'}</label>
-              {edit.moneynote && !edit.moneynoteAdd ? (
+              {!(edit.grp === 'var' && !edit.moneynote) && <label>{edit.moneynote && edit.moneynoteAdd ? '매달 기본 예산' : '월 예산'}</label>}
+              {edit.grp === 'var' && !edit.moneynote ? null : edit.moneynote && !edit.moneynoteAdd ? (
                 // 머니노트만으로 예산을 잡는 카테고리: 예산은 머니노트 탭에서
                 <div>
                   <button type="button" className="btn sm" onClick={() => setMnInfo(true)}>
@@ -350,7 +350,7 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
   async function save() {
     try {
       await api('/recurring', { ...edit, amount: parseAmount(String(edit?.amount ?? 0)) ?? 0 });
-      toast(edit?.mode === 'batch' ? '저장했어요 · 거래 화면의 "고정지출 한꺼번에 넣기"에 보여요' : '저장했어요 · 이번 달 몫도 바로 넣었어요');
+      toast(edit?.mode === 'batch' ? '저장했어요 · 거래 화면 위 "고정지출"에서 체크해서 넣으면 돼요' : '저장했어요 · 이번 달 몫도 바로 넣었어요');
       setEdit(null);
       reloadBoot();
     } catch (e) {
@@ -374,7 +374,7 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
           <h3 className="row">
             고정지출 목록
             <span className="spacer" />
-            <button className="btn sm" onClick={() => setEdit({ title: '', amount: 0, day: 1, categoryId: null, mode: 'auto' })}>
+            <button className="btn sm" onClick={() => setEdit({ title: '', amount: 0, day: 1, categoryId: null, mode: 'batch' })}>
               ＋ 고정 항목
             </button>
           </h3>
@@ -396,7 +396,7 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
                     <b>{r.title}</b> {!r.active && <span className="tag">멈춤</span>}
                   </td>
                   <td>{cat(r.categoryId)?.name ?? '이체'}</td>
-                  <td>{r.mode === 'batch' ? <span className="tag">한꺼번에 넣기</span> : `매월 ${r.day}일 자동`}{r.loanPart && <span className="muted small"> · 상환표 {r.loanPart === 'principal' ? '원금' : '이자'}</span>}</td>
+                  <td>{r.mode === 'batch' ? <span className="tag">체크해서 넣기</span> : `매월 ${r.day}일 자동`}{r.loanPart && <span className="muted small"> · 상환표 {r.loanPart === 'principal' ? '원금' : '이자'}</span>}</td>
                   <td className="muted">{[acc(r.fromAccount), acc(r.toAccount)].filter(Boolean).join(' → ')}</td>
                   <td className="r">{won(r.amount)}</td>
                   <td className="r nowrap">
@@ -420,7 +420,19 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
               )}
             </tbody>
           </table>
-          <p className="muted small"><b>매월 자동</b>: 정한 날 그달 거래가 저절로 들어가요. <b>한꺼번에 넣기</b>: 거래 화면 위 '고정지출'에서 금액을 확인하고 한 번에 넣어요(날짜·금액이 조금씩 바뀌는 항목에 좋아요).</p>
+          <details className="help">
+            <summary>고정지출 등록이란?</summary>
+            <ul>
+              <li>매달 나가는 돈(관리비·보험료·통신비·용돈 등)을 한 번만 등록해 두는 곳이에요.</li>
+              <li>
+                <b>체크해서 넣기</b>: 금액이 달마다 달라지는 것 (예: 관리비) → 거래 화면 위 '고정지출' 상자에서 확인하고 한 번에 넣어요.
+              </li>
+              <li>
+                <b>매월 자동</b>: 금액과 날짜가 늘 같은 것 (예: 보험료) → 정한 날짜에 저절로 들어가요.
+              </li>
+              <li>멈추기: 더 이상 나가지 않는 항목 (지난 거래는 그대로)</li>
+            </ul>
+          </details>
         </div>
       </div>
       <div className={`side-col ${edit ? 'as-modal' : ''}`} onClick={(e) => e.target === e.currentTarget && setEdit(null)}>
@@ -449,13 +461,29 @@ function RecurringList({ boot, onError, toast, reloadBoot }: P) {
               <input className="text money" inputMode="numeric" placeholder="0" value={edit.amount ? won(edit.amount) : ''} onChange={(e) => setEdit({ ...edit, amount: parseAmount(e.target.value) ?? 0 })} />
               <label>넣는 방식</label>
               <span className="seg">
+                <button className={edit.mode === 'batch' ? 'on' : ''} onClick={() => setEdit({ ...edit, mode: 'batch' })}>
+                  체크해서 넣기
+                </button>
                 <button className={edit.mode !== 'batch' ? 'on' : ''} onClick={() => setEdit({ ...edit, mode: 'auto' })}>
                   매월 자동
                 </button>
-                <button className={edit.mode === 'batch' ? 'on' : ''} onClick={() => setEdit({ ...edit, mode: 'batch' })}>
-                  한꺼번에 넣기
-                </button>
               </span>
+              <label />
+              <details className="help">
+                <summary>체크해서 넣기와 매월 자동, 무엇을 고를까요?</summary>
+                <ul>
+                  <li>
+                    <b>체크해서 넣기</b>: 금액이 달마다 조금씩 달라지는 것 (예: 관리비, 통신비)
+                    <br />→ 돈이 빠져나간 걸 확인한 뒤, 거래 화면 위 '고정지출' 상자에서 체크하고 금액을 확인해 한 번에 넣어요.
+                  </li>
+                  <li>
+                    <b>매월 자동</b>: 금액과 날짜가 늘 같은 것 (예: 보험료, 용돈, 적금)
+                    <br />→ 정한 날짜가 되면 아무것도 안 해도 거래에 저절로 들어가요.
+                  </li>
+                  <li>잘 모르겠으면 <b>체크해서 넣기</b>가 안전해요. 금액을 한 번씩 확인하게 되니까요.</li>
+                  <li>대출 상환표와 연결한 항목은 둘 중 무엇을 골라도 그달 상환표 금액으로 들어가요.</li>
+                </ul>
+              </details>
               {edit.mode !== 'batch' && (
                 <>
                   <label>매월</label>
@@ -677,7 +705,7 @@ function HouseholdName({ boot, onError, toast, reloadBoot }: P) {
     <div className="card" style={{ maxWidth: 520 }}>
       <h3>가계부 이름</h3>
       <div className="row">
-        <input className="text" value={v} maxLength={30} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} placeholder="예: 다희네 가계부" />
+        <input className="text" value={v} maxLength={30} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} placeholder="예: 우리집 가계부" />
         <button className="btn main" disabled={!v.trim() || v.trim() === boot.household} onClick={save}>
           저장
         </button>

@@ -405,9 +405,7 @@ function SpendSection({ grp, d, boot, onError, reload, go, setD, toast }: { grp:
                   <td className="r muted">{won(l.prevActual)}</td>
                   <td className="r nextb">
                     {l.category.moneynote && d.nextNotes.some((n) => n.categoryId === id) ? (
-                      <a className="click" title="다음 달 머니노트에 적어 둔 합계예요 — 머니노트에서 고쳐요" onClick={() => go(`#/moneynote?year=${d.next.slice(0, 4)}&month=${d.next}&category=${id}`)}>
-                        <b>{won(d.nextBudgets[id] ?? 0)}</b> ✎
-                      </a>
+                      <NotePop d={d} cid={id} onError={onError} reload={reload} />
                     ) : (
                       <NextBudget value={d.nextBudgets[id] ?? l.category.budget} changed={d.raised[id]} onSave={(n) => raiseBudget(id, n)} onUndo={() => undoBudget(id)} />
                     )}
@@ -546,6 +544,17 @@ function SpendSection({ grp, d, boot, onError, reload, go, setD, toast }: { grp:
           </tbody>
         </table>
       </div>
+      <details className="help">
+        <summary>{Number(d.next.slice(5))}월 예산 칸은 어떻게 쓰나요?</summary>
+        <ul>
+          <li>여기서 고친 숫자가 그대로 {Number(d.next.slice(5))}월 예산이 돼요. 칸 밖을 누르면 저장돼요.</li>
+          <li>안 고치면 이번 달 예산을 그대로 이어받아요.</li>
+          <li>
+            <b>✎ 표시가 있는 칸</b>은 머니노트로 잡은 예산이에요. 누르면 작은 창이 떠서 항목을 보고 금액 고치기·다른 달로 옮기기·지우기를 할 수 있어요.
+          </li>
+          <li>예) 보리 매달 170,000 + 머니노트 정기검진 500,000 = 670,000</li>
+        </ul>
+      </details>
       {noBudget.length > 0 && (
         <p className="small">
           <span className="warn">예산에 없던 지출:</span>{' '}
@@ -859,6 +868,37 @@ function NextBudget({ value, changed, onSave, onUndo }: { value: number; changed
 function NextMoneyNote({ d, boot, go, onError, reload }: { d: ReviewData; boot: Boot; go: (h: string) => void; onError: (e: unknown) => void; reload: () => void }) {
   const [open, setOpen] = useState(() => localStorage.getItem('gb_mn_open') === '1');
   useEffect(() => localStorage.setItem('gb_mn_open', open ? '1' : '0'), [open]);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const on = () => {
+      setOpen(true);
+      setTimeout(() => boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    };
+    window.addEventListener('gb-open-mn', on);
+    return () => window.removeEventListener('gb-open-mn', on);
+  }, []);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editAmt, setEditAmt] = useState('');
+  async function saveAmt(n: ReviewData['nextNotes'][number]) {
+    const v = parseAmount(editAmt);
+    setEditId(null);
+    if (v === null || v === n.amount) return;
+    try {
+      await api('/money-note', { id: n.id, categoryId: n.categoryId, month: n.month, title: n.title, amount: v, memo: n.memo });
+      reload();
+    } catch (e) {
+      onError(e);
+    }
+  }
+  async function remove(n: ReviewData['nextNotes'][number]) {
+    if (!confirm(`'${n.title}' 머니노트를 지울까요?`)) return;
+    try {
+      await api(`/money-note/${n.id}/delete`, {});
+      reload();
+    } catch (e) {
+      onError(e);
+    }
+  }
   const [adding, setAdding] = useState(false);
   const cats = boot.categories.filter((c) => c.moneynote && !c.hidden);
   const [cid, setCid] = useState('');
@@ -879,7 +919,7 @@ function NextMoneyNote({ d, boot, go, onError, reload }: { d: ReviewData; boot: 
     }
   }
   return (
-    <div className="card mnbox2">
+    <div className="card mnbox2" ref={boxRef}>
       <div className="mnhead2" onClick={() => setOpen(!open)}>
         <span className="caret">{open ? '▾' : '▸'}</span>
         <Icon name="gift" /> <b>{m}월 머니노트</b>
@@ -896,7 +936,20 @@ function NextMoneyNote({ d, boot, go, onError, reload }: { d: ReviewData; boot: 
                   <tr key={n.id}>
                     <td>{n.title}</td>
                     <td className="muted small">{catName(n.categoryId)}</td>
-                    <td className="r">{won(n.amount)}</td>
+                    <td className="r">
+                      {editId === n.id ? (
+                        <input className="text sm" style={{ width: 120, textAlign: 'right' }} autoFocus inputMode="numeric" value={editAmt} onChange={(e) => { const v = parseAmount(e.target.value); setEditAmt(v === null ? '' : won(v)); }} onBlur={() => saveAmt(n)} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditId(null); }} />
+                      ) : (
+                        <a className="click" title="눌러서 금액 수정" onClick={() => { setEditId(n.id); setEditAmt(won(n.amount)); }}>
+                          {won(n.amount)}
+                        </a>
+                      )}
+                    </td>
+                    <td className="r">
+                      <a className="click muted" title="지우기" onClick={() => remove(n)}>
+                        ×
+                      </a>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1554,6 +1607,131 @@ function ItemVerdict({ plan, actual }: { plan: number; actual: number }) {
   return (
     <span className={`ic-tag ${d > 0 ? 'over' : 'save'}`}>
       {won(Math.abs(d))}원 {rateText(plan, actual)}
+    </span>
+  );
+}
+
+// 결산 표 '다음 달 예산' 칸(머니노트 카테고리): ✎ 누르면 그 자리에 작은 창 — 어떤 항목인지 보고 금액 수정·지우기·추가
+function NotePop({ d, cid, onError, reload }: { d: ReviewData; cid: string; onError: (e: unknown) => void; reload: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [title, setTitle] = useState('');
+  const [amt, setAmt] = useState('');
+  const box = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const notes = d.nextNotes.filter((n) => n.categoryId === cid);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => box.current && !box.current.contains(e.target as Node) && setOpen(false);
+    const off = () => setOpen(false);
+    document.addEventListener('mousedown', close);
+    window.addEventListener('scroll', off, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', off, true);
+    };
+  }, [open]);
+  function toggle() {
+    const r = box.current?.getBoundingClientRect();
+    if (r) {
+      const W = 400, H = 90 + notes.length * 40 + 80;
+      const left = Math.max(8, Math.min(r.right - W, window.innerWidth - W - 8));
+      const top = r.bottom + 6 + H > window.innerHeight && r.top - 6 - H > 0 ? r.top - 6 - H : r.bottom + 6;
+      setPos({ top, left });
+    }
+    setVals(Object.fromEntries(notes.map((n) => [n.id, won(n.amount)])));
+    setOpen(!open);
+  }
+  async function save(n: ReviewData['nextNotes'][number]) {
+    const v = parseAmount(vals[n.id] ?? '');
+    if (v === null || v === n.amount) return;
+    try {
+      await api('/money-note', { id: n.id, categoryId: n.categoryId, month: n.month, title: n.title, amount: v, memo: n.memo });
+      reload();
+    } catch (e) {
+      onError(e);
+    }
+  }
+  async function move(n: ReviewData['nextNotes'][number], to: string) {
+    try {
+      await api('/money-note', { id: n.id, categoryId: n.categoryId, month: to, title: n.title, amount: parseAmount(vals[n.id] ?? '') ?? n.amount, memo: n.memo });
+      reload();
+    } catch (e) {
+      onError(e);
+    }
+  }
+  async function remove(n: ReviewData['nextNotes'][number]) {
+    if (!confirm(`'${n.title}' 머니노트를 지울까요?`)) return;
+    try {
+      await api(`/money-note/${n.id}/delete`, {});
+      reload();
+    } catch (e) {
+      onError(e);
+    }
+  }
+  async function add() {
+    if (!title.trim()) return;
+    try {
+      await api('/money-note', { categoryId: cid, month: d.next, title, amount: parseAmount(amt) ?? 0 });
+      setTitle('');
+      setAmt('');
+      reload();
+    } catch (e) {
+      onError(e);
+    }
+  }
+  return (
+    <span className="notepop" ref={box}>
+      <a className="click" title="눌러서 머니노트 항목 보기·수정" onClick={toggle}>
+        <b>{won(d.nextBudgets[cid] ?? 0)}</b> ✎
+      </a>
+      {open && (
+        <div className="notepop-box" style={{ top: pos.top, left: pos.left }} onClick={(e) => e.stopPropagation()}>
+          <b className="small">{Number(d.next.slice(5))}월 머니노트</b>
+          {notes.map((n) => (
+            <div key={n.id} className="row small">
+              <span className="np-title">{n.title}</span>
+              <input className="text sm" inputMode="numeric" value={vals[n.id] ?? ''} onChange={(e) => { const v = parseAmount(e.target.value); setVals({ ...vals, [n.id]: v === null ? '' : won(v) }); }} onBlur={() => save(n)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
+              <select className="np-move" value="" title="다른 달로 옮기기" onChange={(e) => e.target.value && move(n, e.target.value)}>
+                <option value="">옮기기</option>
+                {Array.from({ length: 12 }, (_, k) => addMonths(d.next, k + 1)).map((mm) => (
+                  <option key={mm} value={mm}>
+                    {mm.slice(0, 4) !== d.next.slice(0, 4) ? `${mm.slice(2, 4)}년 ` : ''}
+                    {Number(mm.slice(5))}월로
+                  </option>
+                ))}
+              </select>
+              <button className="btn sm np-del" title="지우기" onClick={() => remove(n)}>
+                지우기
+              </button>
+            </div>
+          ))}
+          <div className="row small">
+            <input className="text sm np-title" placeholder="+ 항목 (예: 김장)" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input className="text sm" inputMode="numeric" placeholder="금액" value={amt} onChange={(e) => { const v = parseAmount(e.target.value); setAmt(v === null ? '' : won(v)); }} onKeyDown={(e) => e.key === 'Enter' && add()} />
+            <button className="btn sm" onClick={add}>
+              적기
+            </button>
+          </div>
+          <div className="row small np-sum">
+            {(() => {
+              const sum = notes.reduce((x, n) => x + n.amount, 0);
+              const total = d.nextBudgets[cid] ?? sum;
+              const base = total - sum;
+              return base > 0 ? (
+                <>
+                  매달 {won(base)} + 머니노트 {won(sum)} = <b>{won(total)}원</b>
+                </>
+              ) : (
+                <>
+                  합계 <b>{won(sum)}원</b>
+                </>
+              );
+            })()}
+            <span className="muted">&nbsp;= {Number(d.next.slice(5))}월 예산</span>
+          </div>
+        </div>
+      )}
     </span>
   );
 }

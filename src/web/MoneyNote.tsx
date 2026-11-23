@@ -173,7 +173,6 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
   });
   if (!d) return <p className="muted">불러오는 중…</p>;
   const notesOf = (cid: string, m: string) => d.notes.filter((n) => n.categoryId === cid && n.month === `${year}-${m}`);
-  const oldBudget = (cid: string, m: string) => d.budgets.find((b) => b.categoryId === cid && b.month === `${year}-${m}`)?.amount ?? 0;
   async function copyPrev() {
     if (!confirm(`${Number(year) - 1}년 머니노트를 ${year}년 같은 달로 불러올까요? (이미 있는 건 그대로 둬요)`)) return;
     try {
@@ -265,7 +264,6 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
                       {MONTHS.map((m) => {
                         const ns = notesOf(c.id, m);
                         const on = isCur(c.id, `${year}-${m}`);
-                        const ob = oldBudget(c.id, m);
                         return (
                           <td key={m} className={`r cell-click ${on ? 'on' : ''} ${`${year}-${m}` === thisMonth ? 'now' : ''}`} onClick={() => {
                             (document.activeElement as HTMLElement | null)?.blur();
@@ -281,7 +279,7 @@ export function MoneyNote({ boot, onError, toast, go, initial, embedded = false,
                                 ))}
                               </div>
                             )}
-                            {ns.length ? <b>{won(cellSum(c.id, m))}</b> : ob > 0 ? <span className="muted small" title="머니노트를 적기 전, 예전에 잡아 둔 달별 예산">({won(ob)})</span> : <span className="muted">·</span>}
+                            {ns.length ? <b>{won(cellSum(c.id, m))}</b> : <span className="muted">·</span>}
                           </td>
                         );
                       })}
