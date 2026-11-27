@@ -196,7 +196,7 @@ export function Accounts({ boot, onError, toast, go, reloadBoot }: { boot: Boot;
           </table>
         </div>
         <Valuations boot={boot} onError={onError} toast={toast} />
-        {boot.featureLoan && <LoanSchedules boot={boot} onError={onError} toast={toast} />}
+        {boot.featureLoan && <LoanSchedules boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} />}
       </div>
 
       <div className={`side-col ${edit || editInv ? 'as-modal' : ''}`} onClick={(e) => e.target === e.currentTarget && (setEdit(null), setEditInv(null), setAccDel(null))}>

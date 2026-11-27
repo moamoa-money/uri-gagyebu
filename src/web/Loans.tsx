@@ -15,7 +15,7 @@ interface LoanData {
   }[];
 }
 
-export function LoanSchedules({ boot, onError, toast }: { boot: Boot; onError: (e: unknown) => void; toast: Toast }) {
+export function LoanSchedules({ boot, onError, toast, reloadBoot }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; reloadBoot?: () => void }) {
   const [d, setD] = useState<LoanData | null>(null);
   const load = useCallback(() => api<LoanData>('/loans').then(setD).catch(onError), [onError]);
   useEffect(() => void load(), [load]);
@@ -28,19 +28,19 @@ export function LoanSchedules({ boot, onError, toast }: { boot: Boot; onError: (
           <li>대상: 은행 상환계획표가 있는 대출(주담대 등) — 통장·투자에 분류 '대출' 통장 필요</li>
           <li>① 상환표 붙여넣기: 은행 표 복사 → 붙여넣기 → 넣기</li>
           <li>② 예산 연결: 시작 달 + 원금·이자 카테고리 선택 → 연결</li>
-          <li>③ 고정지출 등록(설정 › 고정지출): '한꺼번에 넣기' + 상환표 연결 → 달마다 원금·이자 자동 금액</li>
+          <li>③ 상환표 아래 '거래에 넣을 고정지출'에서 원금·이자 항목을 각각 연결 → 거래 화면 고정지출 상자에 그달 상환표 금액이 채워짐</li>
           <li>표의 '앱 잔액': 거래로 계산한 대출 잔액 — 은행 남은 대출금과 비교(딱 맞음/차이)</li>
           <li>표 칸 선택 시 바로 수정</li>
         </ul>
       </details>
       {d.loans.map((l) => (
-        <LoanCard key={l.account.id} l={l} boot={boot} setD={setD} onError={onError} toast={toast} />
+        <LoanCard key={l.account.id} l={l} boot={boot} setD={setD} onError={onError} toast={toast} reloadBoot={reloadBoot} />
       ))}
     </>
   );
 }
 
-function LoanCard({ l, boot, setD, onError, toast }: { l: LoanData['loans'][number]; boot: Boot; setD: (d: LoanData) => void; onError: (e: unknown) => void; toast: Toast }) {
+function LoanCard({ l, boot, setD, onError, toast, reloadBoot }: { l: LoanData['loans'][number]; boot: Boot; setD: (d: LoanData) => void; onError: (e: unknown) => void; toast: Toast; reloadBoot?: () => void }) {
   const thisMonth = boot.today.slice(0, 7);
   const [paste, setPaste] = useState('');
   const [open, setOpen] = useState(false); // 처음엔 접어 둠 (상환표 없는 대출도 한 줄로)
@@ -167,14 +167,7 @@ function LoanCard({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
             </button>
           )}
           <LinkForm l={l} boot={boot} setD={setD} onError={onError} toast={toast} />
-          {boot.recurring.some((r) => r.loanAccount === l.account.id) && (
-            <p className="small loan-to-fixed">
-              연결된 고정지출: {boot.recurring.filter((r) => r.active && r.loanAccount === l.account.id).map((r) => `${r.title}(${r.mode === 'batch' ? '체크해서 넣기' : '매월 자동'})`).join(' · ')} — 그달 상환표 금액으로 들어감.{' '}
-              <a className="click" href="#/tx">
-                거래 화면에서 고정지출 넣기 →
-              </a>
-            </p>
-          )}
+          <FixedLink l={l} boot={boot} onError={onError} toast={toast} reloadBoot={reloadBoot} />
         </>
       )}
     </div>
@@ -183,7 +176,8 @@ function LoanCard({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
 
 // 예산 연결: 원금 → 상환 카테고리, 이자 → 대출이자 카테고리, 시작 달 + '대출 말고 다른 몫'
 function LinkForm({ l, boot, setD, onError, toast }: { l: LoanData['loans'][number]; boot: Boot; setD: (d: LoanData) => void; onError: (e: unknown) => void; toast: Toast }) {
-  const cats = boot.categories.filter((c) => !c.hidden);
+  const cats = boot.categories.filter((c) => !c.hidden).sort((a, b) => a.sort - b.sort);
+  const GRP_ORDER = boot.groups;
   const guess = (re: RegExp, grps: string[]) => cats.find((c) => grps.includes(c.grp) && re.test(c.name))?.id ?? '';
   const nextMonth = addMonths(boot.today.slice(0, 7), 1);
   const [pc, setPc] = useState(l.link?.principalCategory ?? guess(/상환/, ['sav', 'fix']));
@@ -227,10 +221,16 @@ function LinkForm({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
         <span className="row">
           <select className="text" value={pc} onChange={(e) => (setPc(e.target.value), setPBase(budgetOf(e.target.value)))}>
             <option value="">(더하지 않음)</option>
-            {cats.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+            {GRP_ORDER.filter((g) => ['sav', 'fix'].includes(g.key)).map((g) => (
+              <optgroup key={g.key} label={g.name}>
+                {cats
+                  .filter((c) => c.grp === g.key)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </optgroup>
             ))}
           </select>
         </span>
@@ -259,10 +259,16 @@ function LinkForm({ l, boot, setD, onError, toast }: { l: LoanData['loans'][numb
         <span className="row">
           <select className="text" value={ic} onChange={(e) => (setIc(e.target.value), setIBase(budgetOf(e.target.value)))}>
             <option value="">(더하지 않음)</option>
-            {cats.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+            {GRP_ORDER.filter((g) => ['fix', 'var'].includes(g.key)).map((g) => (
+              <optgroup key={g.key} label={g.name}>
+                {cats
+                  .filter((c) => c.grp === g.key)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </optgroup>
             ))}
           </select>
         </span>
@@ -382,5 +388,92 @@ function EditCell({ value, onSave, bold = false }: { value: number | null; onSav
     <td className="r">
       <input autoFocus className="text sm" inputMode="numeric" style={{ width: 110, textAlign: 'right' }} value={v} onChange={(e) => { const n = parseAmount(e.target.value); setV(n === null ? '' : won(n)); }} onBlur={done} onKeyDown={(e) => (e.key === 'Enter' ? done() : e.key === 'Escape' && setEdit(false))} />
     </td>
+  );
+}
+
+// 상환표 → 거래에 넣을 고정지출: 원금 항목·이자 항목을 각각 이 상환표에 연결 (설정 화면에 가지 않고 여기서)
+function FixedLink({ l, boot, onError, toast, reloadBoot }: { l: LoanData['loans'][number]; boot: Boot; onError: (e: unknown) => void; toast: Toast; reloadBoot?: () => void }) {
+  const thisMonth = boot.today.slice(0, 7);
+  const row = l.rows.find((r) => r.month === thisMonth) ?? l.rows[0];
+  const parts = [
+    { key: 'principal' as const, name: '원금', cat: l.link?.principalCategory ?? null, amt: row?.principal ?? 0 },
+    { key: 'interest' as const, name: '이자', cat: l.link?.interestCategory ?? null, amt: row?.interest ?? 0 },
+  ];
+  const [pick, setPick] = useState<Record<string, string>>({});
+  const [from, setFrom] = useState(boot.accounts.find((a) => a.kind === '은행' && !a.hidden)?.id ?? '');
+  const linked = (part: string) => boot.recurring.find((r) => r.active && r.loanAccount === l.account.id && r.loanPart === part);
+  const free = boot.recurring.filter((r) => r.active && !r.loanPart);
+  async function connect(part: 'principal' | 'interest', name: string, cat: string | null, amt: number) {
+    const v = pick[part] ?? '';
+    if (!v) return;
+    try {
+      if (v === 'new') {
+        if (!from) return onError(new Error('돈이 나가는 통장을 골라 주세요.'));
+        await api('/recurring', { title: `${l.account.name} ${name}`, categoryId: cat, amount: amt, day: 1, fromAccount: from, toAccount: null, startMonth: thisMonth, mode: 'batch', loanAccount: l.account.id, loanPart: part });
+      } else {
+        const r = boot.recurring.find((x) => x.id === v);
+        if (!r) return;
+        await api('/recurring', { ...r, loanAccount: l.account.id, loanPart: part });
+      }
+      toast(`${name} 항목을 상환표에 연결했어요`);
+      setPick({ ...pick, [part]: '' });
+      reloadBoot?.();
+    } catch (e) {
+      onError(e);
+    }
+  }
+  return (
+    <div className="loan-fixed">
+      <b className="small">거래에 넣을 고정지출</b>
+      {parts.map((p) => {
+        const r = linked(p.key);
+        return (
+          <div key={p.key} className="row small">
+            <span className="lf-name">{p.name}</span>
+            {r ? (
+              <span>
+                <span className="good">✓</span> {r.title} <span className="muted">({r.mode === 'batch' ? '체크해서 넣기' : `매월 ${r.day}일 자동`})</span>
+              </span>
+            ) : (
+              <>
+                <span className="warn">연결 안 됨</span>
+                <select className="text sm" value={pick[p.key] ?? ''} onChange={(e) => setPick({ ...pick, [p.key]: e.target.value })}>
+                  <option value="">고정지출 고르기</option>
+                  {free.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.title}
+                    </option>
+                  ))}
+                  <option value="new">＋ 새로 만들기 ({l.account.name} {p.name})</option>
+                </select>
+                {pick[p.key] === 'new' && (
+                  <select className="text sm" value={from} onChange={(e) => setFrom(e.target.value)} title="돈이 나가는 통장">
+                    {boot.accounts.filter((a) => !a.hidden && a.kind !== '대출').map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}에서 나감
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button className="btn sm main" disabled={!pick[p.key]} onClick={() => connect(p.key, p.name, p.cat, p.amt)}>
+                  연결
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })}
+      <details className="help">
+        <summary>거래에 넣을 고정지출이란?</summary>
+        <ul>
+          <li>은행에서 매달 원금과 이자가 빠져나가면, 그걸 가계부 거래로 넣어 주는 항목이에요.</li>
+          <li>
+            <b>원금과 이자를 각각</b> 연결해야 해요. 하나만 연결하면 다른 하나는 상환표 금액이 아니라 처음 적은 금액(0원 등)으로 나와요.
+          </li>
+          <li>연결하면 거래 화면 위 '고정지출' 상자에 그달 상환표 금액이 채워져요. 예) 12월 원금 125,380 · 이자 4,482</li>
+          <li>이미 등록해 둔 고정지출이 있으면 '고정지출 고르기'에서 고르고, 없으면 '새로 만들기'를 고르세요.</li>
+        </ul>
+      </details>
+    </div>
   );
 }

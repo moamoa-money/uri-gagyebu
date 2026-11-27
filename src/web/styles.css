@@ -510,6 +510,7 @@ table.list.batch-t input[type='checkbox'] { width: 20px; height: 20px; }
 .q-amt input { flex: 1; min-width: 0; border: 0; outline: 0; font-size: 38px; font-weight: 800; text-align: right; background: transparent; color: var(--ink); font-variant-numeric: tabular-nums; }
 .q-amt span { font-size: 20px; color: var(--muted); }
 .q-title { font-size: 17px; padding: 12px 14px; }
+.q-memo { margin-top: 10px; }
 .q-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
 .q-kinds .chip { font-size: 15px; padding: 7px 14px; }
 .q-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
@@ -781,3 +782,7 @@ details.help p { margin: 6px 0 0; line-height: 1.7; }
 /* 거래 표 날짜 정렬 버튼 */
 .sortbtn { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
 .sortbtn:hover { color: var(--accent); }
+/* 상환표 → 거래에 넣을 고정지출 */
+.loan-fixed { margin-top: 12px; padding: 10px 14px; background: var(--soft); border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
+.loan-fixed .row { gap: 8px; align-items: center; flex-wrap: wrap; }
+.loan-fixed .lf-name { width: 36px; font-weight: 700; }

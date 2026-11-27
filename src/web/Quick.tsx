@@ -24,6 +24,7 @@ const keep = (k: string, v: string) => localStorage.setItem('gb_q_' + k, v);
 export function Quick({ boot, onError, toast, go, embedded = false, onSaved }: { boot: Boot; onError: (e: unknown) => void; toast: Toast; go: (h: string) => void; embedded?: boolean; onSaved?: () => void }) {
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
+  const [memo, setMemo] = useState('');
   const [kind, setKind] = useState<Kind>(() => (mem('kind', 'var') as Kind));
   const [categoryId, setCategoryId] = useState(() => mem('cat'));
   const [from, setFrom] = useState(() => mem('from'));
@@ -57,7 +58,7 @@ export function Quick({ boot, onError, toast, go, embedded = false, onSaved }: {
     if (toOn && !to) return onError(new Error('어디로 들어간 돈인지 통장을 골라 주세요.'));
     setBusy(true);
     try {
-      await api('/tx', { date, title: title.trim() || catName(kind === 'transfer' ? null : categoryId), amount: n, categoryId: kind === 'transfer' ? null : categoryId || null, fromAccount: fromOn ? from || null : null, toAccount: toOn ? to || null : null, memo: '' });
+      await api('/tx', { date, title: title.trim() || catName(kind === 'transfer' ? null : categoryId), amount: n, categoryId: kind === 'transfer' ? null : categoryId || null, fromAccount: fromOn ? from || null : null, toAccount: toOn ? to || null : null, memo: memo.trim() });
       keep('kind', kind);
       keep('cat', categoryId);
       if (fromOn) keep('from', from);
@@ -65,6 +66,7 @@ export function Quick({ boot, onError, toast, go, embedded = false, onSaved }: {
       toast(`${won(n)}원 적었어요`);
       setAmount('');
       setTitle('');
+      setMemo('');
       setDate(boot.today);
       loadRecent();
       onSaved?.();
@@ -145,6 +147,8 @@ export function Quick({ boot, onError, toast, go, embedded = false, onSaved }: {
           <DateInput value={date} onChange={setDate} />
         </label>
       </div>
+
+      <input className="text q-memo" placeholder="메모 (선택)" value={memo} onChange={(e) => setMemo(e.target.value)} />
 
       <button className="btn main q-save" disabled={busy || !parseAmount(amount)} onClick={save}>
         {busy ? '저장 중…' : '적기'}
